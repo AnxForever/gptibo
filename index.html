@@ -7,10 +7,40 @@
     <meta name="description" content="AI 与学习会员订阅、短信接码，套餐价格公开，订单进度可查。" />
     <meta name="robots" content="noindex, nofollow" />
     <meta name="theme-color" content="#fafafa" />
-    <title>商店</title>
+    <title>Anx · 会员订阅与工具服务</title>
+    <style>
+      /* First-paint shell. The app is client rendered, so on a slow connection
+         the page used to stay blank until the bundle arrived. These rules are
+         inlined so the header and layout show at once; the script below settles
+         the saved appearance and route before any stylesheet can flash. */
+      #shell{--sh-bg:#fafafa;--sh-card:#fff;--sh-line:#e5e5e8;--sh-soft:#f0f0f2;--sh-ink:#1d1d1f;min-height:100vh;background:var(--sh-bg)}
+      html.dark #shell{--sh-bg:#080808;--sh-card:#111;--sh-line:#282828;--sh-soft:#1c1c1c;--sh-ink:#ededed}
+      #shell .sh-bar{width:min(1280px,calc(100% - 80px));height:76px;margin:0 auto;display:flex;align-items:center;border-bottom:1px solid var(--sh-line)}
+      #shell .sh-brand{display:inline-flex;align-items:center;gap:8px;font-weight:650;font-size:21px;white-space:nowrap;letter-spacing:-.8px;color:var(--sh-ink)}
+      #shell .sh-nav{display:flex;gap:34px;margin-left:45px}
+      #shell i{display:block;border-radius:5px;background:var(--sh-soft)}
+      #shell .sh-nav i{width:54px;height:12px}
+      #shell .sh-body{width:min(1120px,calc(100% - 80px));margin:0 auto;padding:52px 0}
+      #shell .sh-title{width:min(520px,70%);height:38px;border-radius:10px;background:var(--sh-line)}
+      #shell .sh-sub{width:min(360px,50%);height:13px;border-radius:5px;background:var(--sh-soft);margin-top:18px}
+      #shell .sh-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:24px;margin-top:48px}
+      #shell .sh-card{height:262px;border-radius:18px;background:var(--sh-card);border:1px solid var(--sh-line)}
+      html.shell-plain #shell .sh-title,html.shell-plain #shell .sh-sub,html.shell-plain #shell .sh-grid{display:none}
+      @media (max-width:720px){#shell .sh-bar,#shell .sh-body{width:calc(100% - 48px)}#shell .sh-nav{display:none}}
+    </style>
+    <script>
+      (function () {
+        var root = document.documentElement
+        try {
+          if (localStorage.getItem('ymx-theme') === 'dark') { root.classList.add('dark'); root.style.colorScheme = 'dark' }
+        } catch (e) { /* storage can be disabled; keep the light default */ }
+        var path = location.pathname
+        if (path === '/admin' || path.indexOf('/admin/') === 0 || path === '/join' || path === '/join/' || path === '/partner') root.classList.add('shell-plain')
+      })()
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div id="shell" aria-hidden="true"><div class="sh-bar"><span class="sh-brand"><svg viewBox="0 0 32 32" fill="none" style="width:33px;height:33px"><path d="M9 24V13c0-4 3-7 7-7M16 26V13c0-4 3-7 7-7M23 24V15" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/></svg><span>Anx</span></span><span class="sh-nav"><i></i><i></i><i></i></span></div><div class="sh-body"><div class="sh-title"></div><div class="sh-sub"></div><div class="sh-grid"><div class="sh-card"></div><div class="sh-card"></div><div class="sh-card"></div><div class="sh-card"></div></div></div></div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

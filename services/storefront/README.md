@@ -27,12 +27,14 @@ docker compose up -d --wait api worker
 
 ## 部署到服务器
 
-把前端构建产物与后端源码推送到目标机，再由目标机上的 `anx-deploy.sh` 完成滚动更新：重建镜像、执行迁移、按 `dist/_headers` 同步 nginx 的 CSP 头、启动并做健康检查。
+把前端构建产物与后端源码推送到目标机，再由目标机上的 `scripts/rollout.sh` 完成滚动更新：重建镜像、执行迁移、按 `dist/_headers` 同步 nginx 的安全头、启动并做健康检查。
 
 ```sh
 npm run build
-ANX_HOST=korea-seoul ./services/storefront/scripts/deploy.sh 2026.10.14
+ANX_HOST=korea-seoul sh services/storefront/scripts/deploy.sh 2026.10.14
 ```
+
+用 `sh` 而不是 `bash` 调用：Windows 上 `bash` 常指向 WSL，那会用到另一套 ssh/tar 而连不上目标机。脚本本身是 POSIX sh。
 
 未改动源码时命中构建缓存，数秒完成；改动 Go 源码后需要重新编译，约 1–2 分钟。该脚本不传输 `.secrets`、`.env` 与构建产物，因此不会覆盖目标机上的配置。
 

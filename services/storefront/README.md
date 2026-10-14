@@ -38,6 +38,8 @@ ANX_HOST=korea-seoul sh services/storefront/scripts/deploy.sh 2026.10.14
 
 未改动源码时命中构建缓存，数秒完成；改动 Go 源码后需要重新编译，约 1–2 分钟。该脚本不传输 `.secrets`、`.env` 与构建产物，因此不会覆盖目标机上的配置。
 
+要让商品从「暂停售卖」变成可下单，需要接入支付与供货商通道，完整清单（含每道门槛的代码位置）见 [docs/INTEGRATION.md](docs/INTEGRATION.md)。
+
 ## 原生开发
 
 程序读取环境变量，不自动加载 dotenv。通过 `DATABASE_URL_FILE` 或 `DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD_FILE` 指向独立数据库；外部连接默认要求 TLS。先用所有者身份执行 `migrate` 和 `grant-runtime`，再用受限角色执行 `api` 和 `worker`：

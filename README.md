@@ -1,4 +1,4 @@
-# GPTibo
+# Anx
 
 可自托管的商城前台、管理后台、代理工作台及主站后端。前端使用 React、TypeScript 和 Vite；主后端使用 Go、Gin 与 PostgreSQL，同时保留 Cloudflare Workers + D1 实现。
 

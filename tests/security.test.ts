@@ -93,9 +93,12 @@ test('automatic suppliers reject oversized and malformed responses with fixed sa
   }
 })
 
-test('deploy config keeps alternate Worker entrypoints closed and static responses carry HSTS', () => {
+test('deploy config keeps preview entrypoints closed while the store is served, and static responses carry HSTS', () => {
   const config = JSON.parse(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8'))
-  assert.equal(config.workers_dev, false)
+  // The storefront has to be reachable by customers before a custom domain is
+  // attached, so the workers.dev host is deliberately on. Preview URLs stay
+  // closed so an unreleased version cannot be probed at a guessable host.
+  assert.equal(config.workers_dev, true)
   assert.equal(config.preview_urls, false)
   assert.match(readFileSync(new URL('../public/_headers', import.meta.url), 'utf8'), /Strict-Transport-Security: max-age=15552000/)
 })
@@ -107,6 +110,6 @@ test('verification email redirects cannot forward a login code or request body t
     assert.equal(options.redirect, 'manual')
     return new Response(null, { status: 307, headers: { Location: 'https://evil.test/steal' } })
   })
-  await assert.rejects(sendVerificationEmail({ RESEND_API_KEY: 'mock-key', RESEND_FROM: 'Recharge <login@example.test>' } as Env, 'order-recovery', 'buyer@example.test', '123456', crypto.randomUUID()), /delivery failed/)
+  await assert.rejects(sendVerificationEmail({ RESEND_API_KEY: 'mock-key', RESEND_FROM: 'Anx <login@example.test>' } as Env, 'order-recovery', 'buyer@example.test', '123456', crypto.randomUUID()), /delivery failed/)
   assert.equal(calls, 1)
 })

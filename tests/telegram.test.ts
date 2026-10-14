@@ -6,6 +6,7 @@ import worker from '../worker/index.ts'
 import { retryTelegramInvitations, telegramGroups } from '../worker/telegram.ts'
 import { provisionPartner } from '../worker/partner-provision.ts'
 import type { Env, Statement, Value } from '../worker/platform.ts'
+import { platformEmailFields } from '../emails/brand.ts'
 
 function fixture(t: TestContext) {
   const db = new DatabaseSync(':memory:')
@@ -194,7 +195,7 @@ test('confirmed application provisions once using current default prices, initia
   await retryTelegramInvitations(s.env)
   assert.equal(s.failures.mailCount, 1)
   const mail = s.calls.find(c => c.method === 'email')!
-  assert.deepEqual(mail.data.to, ['new@example.test']); assert.match(mail.data.text, /shop.example.invalid\/join/)
+  assert.deepEqual(mail.data.to, ['new@example.test']); assert.ok(mail.data.text.includes(platformEmailFields.BRAND_WORKSPACE_URL))
   assert.match(mail.key!, /^partner-welcome\/telegram-/)
   assert.equal(s.db.prepare('SELECT mail_status FROM telegram_partner_applications').get()!.mail_status, 'sent')
   assert.match(s.lastText(), /邀请邮件已发送/)

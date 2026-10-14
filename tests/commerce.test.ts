@@ -11,6 +11,7 @@ import { PAYOUT_COOLDOWN_MS } from '../worker/finance.ts'
 import { generateReferralCode } from '../shared/partner-link.ts'
 import { emptyAnnouncement } from '../shared/announcements.ts'
 import { provisionPartner } from '../worker/partner-provision.ts'
+import { platformEmailFields } from '../emails/brand.ts'
 
 const credential = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ'
 async function setup() {
@@ -353,7 +354,7 @@ test('administrator configuration, authentication, CSRF, credential rotation and
 })
 
 function adminMail(t: Parameters<Parameters<typeof test>[1]>[0], s: Awaited<ReturnType<typeof setup>>) {
-  s.env.RESEND_API_KEY = 'test'; s.env.RESEND_FROM = 'GPTibo <noreply@shop.example.invalid>'
+  s.env.RESEND_API_KEY = 'test'; s.env.RESEND_FROM = 'Anx <noreply@shop.example.invalid>'
   const mails: { to: string[]; text: string; html: string; subject: string }[] = []
   t.mock.method(globalThis, 'fetch', async (url: string, options: RequestInit) => {
     assert.equal(url, 'https://api.resend.com/emails')
@@ -706,7 +707,7 @@ test('partner opening sends only a login link; the partner requests an OTP befor
   const result = await response.json()
   assert.match(result.slug, /^[A-Z0-9]{6}$/); assert.equal(result.invitationSent, true)
   assert.equal(mail.mails.length, 1); assert.deepEqual(mail.mails[0].to, ['new@example.test'])
-  assert.match(mail.mails[0].text, /账号已开通/); assert.match(mail.mails[0].text, /https:\/\/shop.example.invalid\/join/)
+  assert.match(mail.mails[0].text, /账号已开通/); assert.ok(mail.mails[0].text.includes(platformEmailFields.BRAND_WORKSPACE_URL))
   const stored = s.db.prepare('SELECT * FROM partners WHERE id=?').get(result.id)!
   assert.equal(stored.slug, result.slug)
   assert.equal(stored.name, '代理商店')

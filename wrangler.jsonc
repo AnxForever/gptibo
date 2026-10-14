@@ -52,6 +52,12 @@
       }
     }
   ],
+  "observability": {
+    "enabled": true,
+    "traces": {
+      "enabled": true
+    }
+  },
   "assets": {
     "binding": "ASSETS",
     "run_worker_first": [

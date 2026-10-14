@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run emails:build && tsc -b && tsc -p tsconfig.worker.json && vite build",
+    "build": "npm run emails:build && tsc -b && tsc -p tsconfig.worker.json && vite build && node scripts/stamp-csp-hash.mjs",
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "npm run emails:build && node --test tests/*.test.ts",

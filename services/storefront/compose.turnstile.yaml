@@ -1,0 +1,17 @@
+# Explicit opt-in, appended after compose.yaml. Enables Cloudflare Turnstile
+# verification for order creation and for login code requests.
+#
+# The referenced file is the server-managed widget registry: a JSON array of
+# {"sitekey": "...", "secret": "...", "hosts": ["example.com", "..."]} entries
+# as produced by the Cloudflare Turnstile dashboard. Unknown hostnames fail
+# closed, so a missing entry blocks the flow rather than skipping it.
+services:
+  api:
+    environment:
+      TURNSTILE_ENABLED: "true"
+      TURNSTILE_CONFIG_FILE: /run/secrets/turnstile
+      AUTH_TURNSTILE_ENABLED: "true"
+    secrets: [turnstile]
+secrets:
+  turnstile:
+    file: ./.secrets/turnstile

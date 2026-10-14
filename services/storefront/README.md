@@ -23,6 +23,19 @@ docker compose up -d --wait api worker
 
 其他接入参数见 `.env.integrations.example`。复制为 `.env.integrations` 后可叠加 `compose.integrations.yaml`；所有开关默认关闭，匿名适配器的保留域名无法用于真实交易。必须先按自己的上游协议完成开发和测试，不能直接填生产秘密试运行。可选域名配置在 `compose.domains.yaml`，仅使用自己新建的云资源。
 
+`compose.turnstile.yaml` 可选启用 Cloudflare Turnstile：把 widget 注册表写入 `.secrets/turnstile`（JSON 数组，每项含 `sitekey`、`secret`、`hosts`），再叠加该 Compose 文件。未登记的主机名一律拒绝，不会静默放行。
+
+## 部署到服务器
+
+把前端构建产物与后端源码推送到目标机，再由目标机上的 `anx-deploy.sh` 完成滚动更新：重建镜像、执行迁移、按 `dist/_headers` 同步 nginx 的 CSP 头、启动并做健康检查。
+
+```sh
+npm run build
+ANX_HOST=korea-seoul ./services/storefront/scripts/deploy.sh 2026.10.14
+```
+
+未改动源码时命中构建缓存，数秒完成；改动 Go 源码后需要重新编译，约 1–2 分钟。该脚本不传输 `.secrets`、`.env` 与构建产物，因此不会覆盖目标机上的配置。
+
 ## 原生开发
 
 程序读取环境变量，不自动加载 dotenv。通过 `DATABASE_URL_FILE` 或 `DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD_FILE` 指向独立数据库；外部连接默认要求 TLS。先用所有者身份执行 `migrate` 和 `grant-runtime`，再用受限角色执行 `api` 和 `worker`：

@@ -101,7 +101,7 @@ ALIPAY_SELLER_ID=你的商户UID
 ALIPAY_APP_PRIVATE_KEY_FILE=/run/integrations/alipay-private
 ALIPAY_PUBLIC_KEY_FILE=/run/integrations/alipay-public
 PAYMENT_CHECKOUT_ENABLED=true
-PAYMENT_NOTIFY_ORIGIN=https://anxforever.shop
+PAYMENT_NOTIFY_ORIGIN=https://shop.example.invalid
 ```
 
 - 代码会**拒绝**非官方网关（防 SSRF），沙箱也是白名单内的

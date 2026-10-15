@@ -10,6 +10,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 项目协作规则（含 Git 提交要求）见 [AGENTS.md](AGENTS.md)；发布检查清单见 [SECURITY.md](SECURITY.md)；"商品为什么显示暂停售卖"见 [services/storefront/docs/INTEGRATION.md](services/storefront/docs/INTEGRATION.md)。
 
+### 真实渠道档案在哪
+
+源码里搜不到真实供应商名、真实支付主机名，**这是设计，不是遗漏**。真实身份、地址与密钥不随仓库提供：
+
+- **本机私有清单** `SUPPLIERS.local.md`：真实供应商身份、部署节点路径、真实接入地址、渠道开关现状。该文件已由 `.gitignore` 排除，**绝不提交**。
+- **部署节点**：上游供应商接口契约、商品成本映射、渠道开关与密钥路径、运维流程，都在部署主机上（具体路径见上面那份私有清单）。
+- **聚合支付 A / B 的真实主机名**：本仓库里已匿名化且**无法从本仓库恢复**，只能从上游原始项目取回，方法见 [services/storefront/docs/INTEGRATION.md](services/storefront/docs/INTEGRATION.md)。
+
+
 ## 两套后端，一套前端
 
 同一份 React 前端，有两个**功能平行但互不共享代码/表结构**的后端：

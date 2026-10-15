@@ -20,6 +20,7 @@ __pycache__/
 !.env.example
 !.dev.vars.example
 *.local
+*.local.md
 
 # Local design experiments and backups; retain the current baseline preview.
 artifacts/*

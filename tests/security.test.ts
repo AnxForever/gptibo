@@ -93,12 +93,12 @@ test('automatic suppliers reject oversized and malformed responses with fixed sa
   }
 })
 
-test('deploy config keeps preview entrypoints closed while the store is served, and static responses carry HSTS', () => {
+test('sanitized deploy config keeps public worker entrypoints closed, and static responses carry HSTS', () => {
   const config = JSON.parse(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8'))
-  // The storefront has to be reachable by customers before a custom domain is
-  // attached, so the workers.dev host is deliberately on. Preview URLs stay
-  // closed so an unreleased version cannot be probed at a guessable host.
-  assert.equal(config.workers_dev, true)
+  // This public checkout has no production bindings. Deployment owners must
+  // configure their own ingress explicitly; neither default workers.dev nor
+  // preview URLs should expose an unconfigured copy.
+  assert.equal(config.workers_dev, false)
   assert.equal(config.preview_urls, false)
   assert.match(readFileSync(new URL('../public/_headers', import.meta.url), 'utf8'), /Strict-Transport-Security: max-age=15552000/)
 })

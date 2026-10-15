@@ -13,7 +13,7 @@
 | **支付宝直连** | ✅ **完整真实实现**（官方网关 + RSA2 签名 + 回调验签） | **只要填 4 个值** |
 | **聚合支付 A / B** | ⚠️ 签名逻辑完整，**主机名被替换成保留域名** | 换回真实主机 + 核对字段 |
 | **充值（ChatGPT 系列）** | ⚠️ 约 2400 行逻辑完整，**端点被匿名化** | 换回真实端点 + 核对签名串 |
-| **邮件交付供货商**（Gemini / Duolingo） | ❌ **仅框架**，`mappings` 里是 `DEMO_PRODUCT_A/B` | 按上游文档实现 |
+| **邮件交付供货商**（Gemini / Duolingo） | ⚠️ **框架与协议已实现**（`DeliverySupplier`），商品映射在 `mappings` | 换上游只需改 `mappings` 和 `DELIVERY_SUPPLIER_API_BASE` |
 | **账号供货商**（Gmail） | ❌ **仅框架** | 按上游文档实现 |
 | **X 赠送**（X Premium） | ❌ **仅框架** | 按上游文档实现 |
 
@@ -140,8 +140,8 @@ DELIVERY_SUPPLIER_CNY_PER_USD=6.7      # 汇率，用于把上游美元报价换
 ```go
 // 现在是演示值，必须换成上游真实商品ID
 var mappings = map[string]struct{ ID string; Ceiling int64 }{
-    "gemini-pro-18m": {"DEMO_PRODUCT_A", 60},
-    "duolingo-12m":   {"DEMO_PRODUCT_B", 38},
+    "gemini-pro-18m": {"<upstream product id>", 60},
+    "duolingo-12m":   {"<upstream product id>", 60},
 }
 ```
 

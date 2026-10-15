@@ -139,7 +139,8 @@ func (s *Service) Snapshot(ctx context.Context, tx pgx.Tx, o orders.Order, _ ord
 		_, e = tx.Exec(ctx, `INSERT INTO account_supplier_orders(order_id,goods_id,goods_name,api_base,app_id,max_cost_cents,instructions,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, o.ID, g.ID, g.Name, s.AccountSupplier.Base, s.AccountSupplier.App, s.MaxCents, instructions, time.Now().UnixMilli())
 	} else {
 		m := mappings[o.Plan]
-		body := raw(map[string]any{"service_id": m.ID, "quantity": 1, "precheck": true, "include_proofs": true})
+		// Only the two documented fields: upstreams reject unknown parameters.
+		body := raw(map[string]any{"service_id": m.ID, "quantity": 1})
 		_, e = tx.Exec(ctx, `INSERT INTO delivery_supplier_orders(order_id,service_id,credential_hash,request_key,request_body,max_usd_cents,cny_per_usd,instructions,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, o.ID, m.ID, security.Hash(s.DeliverySupplier.Key), "ymx_"+o.ID, body, m.Ceiling, s.FX, instructions, time.Now().UnixMilli())
 	}
 	return e

@@ -61,12 +61,12 @@ func TestProcurementRecoversOriginalPurchaseAndFreezesDelivery(t *testing.T) {
 				})
 			} else {
 				plan = "duolingo-12m"
-				service.DeliverySupplier, _ = procurement.NewDeliverySupplier("fixture-key")
+				service.DeliverySupplier, _ = procurement.NewDeliverySupplier("https://delivery.example.test/api/v1", "fixture-key")
 				service.DeliverySupplier.HTTP.Transport = rechargeTransport(func(r *http.Request) (*http.Response, error) {
 					var data any
 					switch r.URL.Path {
 					case "/api/v1/products":
-						data = map[string]any{"services": []any{map[string]any{"service_id": "DEMO_PRODUCT_B", "name": "Duolingo", "price": 0.38, "stock": 2}}}
+						data = map[string]any{"services": []any{map[string]any{"service_id": "S_03", "name": "Duolingo", "price": 0.38, "stock": 2}}}
 					case "/api/v1/me":
 						data = map[string]any{"wallet_balance": 20, "username": "fixture"}
 					case "/api/v1/order":
@@ -80,7 +80,7 @@ func TestProcurementRecoversOriginalPurchaseAndFreezesDelivery(t *testing.T) {
 						data = map[string]any{"order_id": "original-ny", "order_status": "success"}
 					case "/api/v1/order/original-ny":
 						queryCalls++
-						data = map[string]any{"order": map[string]any{"order_id": "original-ny", "service_id": "DEMO_PRODUCT_B", "requested_quantity": 1, "order_status": "success", "charged_amount": 0.38, "refunded_amount": 0, "net_charged_amount": 0.38, "delivered_quantity": 1, "partial_delivery": false, "delivered_products": []string{"FIXTURE-CDK"}}}
+						data = map[string]any{"order": map[string]any{"order_id": "original-ny", "service_id": "S_03", "requested_quantity": 1, "order_status": "success", "charged_amount": 0.38, "refunded_amount": 0, "net_charged_amount": 0.38, "delivered_quantity": 1, "partial_delivery": false, "delivered_products": []string{"FIXTURE-CDK"}}}
 					default:
 						t.Fatal("unexpected supplier path", r.URL.Path)
 					}
@@ -158,7 +158,7 @@ func TestProcurementRecoversOriginalPurchaseAndFreezesDelivery(t *testing.T) {
 func TestDeliverySupplierReceiptRecoveryRequiresExactRejectedAttempt(t *testing.T) {
 	owner, app, a, h, authMail := identityFixture(t)
 	admin := login(t, h, authMail, "admin", "")
-	client, _ := procurement.NewDeliverySupplier("fixture-key")
+	client, _ := procurement.NewDeliverySupplier("https://delivery.example.test/api/v1", "fixture-key")
 	client.HTTP.Transport = rechargeTransport(func(r *http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 400, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"error_code":"INVALID_IDEMPOTENCY_KEY"}`))}, nil
 	})
@@ -167,7 +167,7 @@ func TestDeliverySupplierReceiptRecoveryRequiresExactRejectedAttempt(t *testing.
 	now := time.Now().UnixMilli()
 	execSQL(t, owner, `INSERT INTO catalog_plans(id,product_id,name,price_cents) VALUES('duolingo-12m','duolingo','Duolingo',1000)`)
 	execSQL(t, owner, `INSERT INTO orders(id,owner_hash,idempotency_key,plan,plan_name,price_cents,mode,payment_status,status,created_at,updated_at,last_event_id) VALUES('YMX-OLD','owner','key','duolingo-12m','Duolingo',1000,'live','paid','processing',$1,$1,'fixture')`, now)
-	execSQL(t, owner, `INSERT INTO delivery_supplier_orders(order_id,service_id,credential_hash,request_key,request_body,max_usd_cents,cny_per_usd,instructions,state,attempted_at,updated_at) VALUES('YMX-OLD','DEMO_PRODUCT_B',$1,'ymx/YMX-OLD','{"service_id":"DEMO_PRODUCT_B","quantity":1}',38,7,'说明','unknown',$2,$2)`, security.Hash(client.Key), now)
+	execSQL(t, owner, `INSERT INTO delivery_supplier_orders(order_id,service_id,credential_hash,request_key,request_body,max_usd_cents,cny_per_usd,instructions,state,attempted_at,updated_at) VALUES('YMX-OLD','S_03',$1,'ymx/YMX-OLD','{"service_id":"S_03","quantity":1}',38,7,'说明','unknown',$2,$2)`, security.Hash(client.Key), now)
 	if e := s.Fulfill(context.Background(), "YMX-OLD"); e == nil {
 		t.Fatal("explicit rejection lost")
 	}

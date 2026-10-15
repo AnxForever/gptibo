@@ -174,15 +174,22 @@ func validateGoods(g Goods, ceiling int64) error {
 }
 
 type DeliverySupplier struct {
+	// Base is the upstream API root without a trailing slash and including any
+	// version prefix, e.g. https://api.example.com/api/v1. Kept in config so no
+	// particular supplier is baked into the source.
+	Base string
 	Key  string
 	HTTP *http.Client
 }
 
-func NewDeliverySupplier(key string) (*DeliverySupplier, error) {
+func NewDeliverySupplier(base, key string) (*DeliverySupplier, error) {
+	if base == "" {
+		return nil, errors.New("missing DeliverySupplier base URL")
+	}
 	if key == "" {
 		return nil, errors.New("missing DeliverySupplier key")
 	}
-	return &DeliverySupplier{key, client(15)}, nil
+	return &DeliverySupplier{strings.TrimRight(base, "/"), key, client(15)}, nil
 }
 func (n *DeliverySupplier) Call(ctx context.Context, path, receipt string, payload *string, out any) error {
 	if path != "/products" && path != "/me" && path != "/order" && !(strings.HasPrefix(path, "/order/") && identifier.MatchString(strings.TrimPrefix(path, "/order/"))) {
@@ -195,7 +202,7 @@ func (n *DeliverySupplier) Call(ctx context.Context, path, receipt string, paylo
 			return errors.New("invalid procurement request")
 		}
 	}
-	req, e := http.NewRequestWithContext(ctx, method, "https://delivery.example.invalid/api/v1"+path, strings.NewReader(body))
+	req, e := http.NewRequestWithContext(ctx, method, n.Base+path, strings.NewReader(body))
 	if e != nil {
 		return e
 	}
@@ -233,6 +240,7 @@ func (n *DeliverySupplier) Call(ctx context.Context, path, receipt string, paylo
 	if json.Unmarshal(b, out) != nil {
 		return errors.New("invalid supplier response")
 	}
+	normalize(out)
 	return nil
 }
 
@@ -242,6 +250,8 @@ type NYProduct struct {
 	Price        *json.Number `json:"price"`
 	Stock        int64        `json:"stock"`
 	Availability string       `json:"availability_state"`
+	// Alias: some upstreams advertise availability as a boolean gate instead.
+	Orderable *bool `json:"orderable"`
 }
 type NYOrder struct {
 	ID        string       `json:"order_id"`
@@ -255,12 +265,47 @@ type NYOrder struct {
 	Partial   *bool        `json:"partial_delivery"`
 	Values    []string     `json:"delivered_products"`
 	Retry     float64      `json:"retry_after_seconds"`
+	// Aliases: shorter field names used by some upstreams.
+	StatusRaw    string       `json:"status"`
+	RequestedRaw *int         `json:"quantity"`
+	ChargedRaw   *json.Number `json:"amount"`
+}
+
+// normalize maps the field aliases some upstreams use onto the canonical
+// fields above, so the rest of the service only ever sees one shape. Types it
+// does not know are left alone.
+func normalize(v any) {
+	switch x := v.(type) {
+	case *NYProduct:
+		if x.Orderable != nil {
+			if *x.Orderable {
+				x.Availability = "available"
+			} else {
+				x.Availability = "sold_out"
+				x.Stock = 0
+			}
+		}
+	case *NYOrder:
+		if x.Status == "" {
+			x.Status = x.StatusRaw
+		}
+		if x.Requested == nil {
+			x.Requested = x.RequestedRaw
+		}
+		if x.Charged == nil {
+			x.Charged = x.ChargedRaw
+		}
+	case []NYProduct:
+		for i := range x {
+			normalize(&x[i])
+		}
+	}
 }
 
 var mappings = map[string]struct {
 	ID      string
 	Ceiling int64
-}{"gemini-pro-18m": {"DEMO_PRODUCT_A", 60}, "duolingo-12m": {"DEMO_PRODUCT_B", 38}}
+}{"gemini-pro-18m": {"DEMO_PRODUCT_A", 60}, "duolingo-12m": {"S_03", 60}}
 
 func (n *DeliverySupplier) Products(ctx context.Context) ([]NYProduct, error) {
 	var out struct {
@@ -270,6 +315,7 @@ func (n *DeliverySupplier) Products(ctx context.Context) ([]NYProduct, error) {
 	if e == nil && out.Services == nil {
 		e = errors.New("invalid product list")
 	}
+	normalize(out.Services)
 	return out.Services, e
 }
 func validateNY(products []NYProduct, id string, ceiling int64) error {

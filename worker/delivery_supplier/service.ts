@@ -21,8 +21,9 @@ export async function delivery_supplierSnapshot(env: Env, plan: string, sale: nu
   return { serviceId: mapping.id, fingerprint: await credentialHash(env), ceiling, fx, instructions }
 }
 export function delivery_supplierSnapshotStatement(env: Env, id: string, s: Snapshot): Statement {
+  // Only the two documented fields: upstreams reject unknown parameters.
   return env.INTEREST_DB.prepare('INSERT INTO delivery_supplier_orders(order_id,service_id,credential_hash,request_key,request_body,max_usd_cents,cny_per_usd,instructions,updated_at) SELECT id,?,?,?,?,?,?,?,? FROM orders WHERE id=? ON CONFLICT DO NOTHING')
-    .bind(s.serviceId, s.fingerprint, purchaseReceipt(id), JSON.stringify({ service_id: s.serviceId, quantity: 1, precheck: true, include_proofs: true }), s.ceiling, s.fx, s.instructions, Date.now(), id)
+    .bind(s.serviceId, s.fingerprint, purchaseReceipt(id), JSON.stringify({ service_id: s.serviceId, quantity: 1 }), s.ceiling, s.fx, s.instructions, Date.now(), id)
 }
 export async function delivery_supplierCatalog<T extends { id: string; enabled: number; price_cents: number; cost_cents?: number }>(env: Env, plans: T[], partnerId?: string) {
   let list: Product[] = []
@@ -86,8 +87,17 @@ export async function fulfillDeliverySupplier(env: Env, id: string) {
       row = (await find(env, id))!
     }
     const data = await call<{ order: SupplierOrder }>(env, '/order/' + encodeURIComponent(row.supplier_order!)), result = data.order
-    if (!result || result.order_id !== row.supplier_order || (result.service_id !== undefined && result.service_id !== row.service_id) || result.requested_quantity !== 1) throw new ApiError('原采购订单信息待核对。', 409)
-    if (result.order_status === 'refunded' && usdMicros(result.net_charged_amount) === 0 && usdMicros(result.refunded_amount) === usdMicros(result.charged_amount) && result.delivered_quantity === 0) {
+    if (!result || result.order_id !== row.supplier_order || (result.service_id !== undefined && result.service_id !== row.service_id)) throw new ApiError('原采购订单信息待核对。', 409)
+    // Some upstreams report short field names and no accounting counters. A
+    // successful order then proves completion with its charge and values alone.
+    const status = result.order_status ?? result.status
+    const requested = result.requested_quantity ?? result.quantity ?? 1
+    const charged = result.charged_amount ?? result.amount
+    const minimal = result.refunded_amount === undefined && result.net_charged_amount === undefined && result.delivered_quantity === undefined && result.partial_delivery === undefined
+    if (requested !== 1) throw new ApiError('原采购订单信息待核对。', 409)
+    // A rejection needs the supplier's own refund counters to agree. Partial or
+    // missing evidence stays pending: the charge may still be reversed later.
+    if (status === 'refunded' && !minimal && result.delivered_quantity === 0 && usdMicros(result.net_charged_amount) === 0 && usdMicros(result.refunded_amount) === usdMicros(result.charged_amount)) {
       const event = crypto.randomUUID(), time = Date.now()
       await env.INTEREST_DB.batch([
         env.INTEREST_DB.prepare("UPDATE delivery_supplier_orders SET state='rejected',updated_at=? WHERE order_id=? AND lease_token=?").bind(time, id, lease),
@@ -95,12 +105,13 @@ export async function fulfillDeliverySupplier(env: Env, id: string) {
         env.INTEREST_DB.prepare("INSERT INTO order_events(id,order_id,actor,action,from_status,to_status,note,order_version,created_at) SELECT ?,id,'system','delivery_supplier-refunded','processing',status,'供应商确认采购已退款，请通过原订单处理客户售后',version,? FROM orders WHERE id=? AND last_event_id=?").bind(event, time, id, event),
       ]); return
     }
-    if (result.order_status !== 'success') {
+    if (status !== 'success') {
       const delay = Math.min(3600, Math.max(60, Number(result.retry_after_seconds) || 60)) * 1000
       await env.INTEREST_DB.prepare("UPDATE delivery_supplier_orders SET state='pending',next_check_at=?,updated_at=? WHERE order_id=? AND lease_token=?").bind(Date.now() + delay, Date.now(), id, lease).run(); return
     }
-    const cost = usdMicros(result.charged_amount), values = result.delivered_products
-    if (cost <= 0 || cost > row.max_usd_cents * USD_MICROS_PER_CENT || usdMicros(result.refunded_amount) !== 0 || usdMicros(result.net_charged_amount) !== cost || result.delivered_quantity !== 1 || result.partial_delivery !== false || !Array.isArray(values) || values.length !== 1) throw new ApiError('采购金额或交付数量待核对。', 409)
+    const cost = usdMicros(charged), values = result.delivered_products ?? result.products
+    if (cost <= 0 || cost > row.max_usd_cents * USD_MICROS_PER_CENT || !Array.isArray(values) || values.length !== requested) throw new ApiError('采购金额或交付数量待核对。', 409)
+    if (!minimal && (usdMicros(result.refunded_amount) !== 0 || usdMicros(result.net_charged_amount) !== cost || result.delivered_quantity !== 1 || result.partial_delivery !== false)) throw new ApiError('采购金额或交付数量待核对。', 409)
     const order = await getOrder(env, id), value = validateValue(emailProduct(order.plan)!.kind, values[0])
     await env.INTEREST_DB.prepare("UPDATE delivery_supplier_orders SET state='purchased',actual_usd_micros=?,actual_usd_cents=?,actual_cost_cents=?,value=?,updated_at=? WHERE order_id=? AND lease_token=?").bind(cost, Math.round(cost / USD_MICROS_PER_CENT), Math.round(cost * row.cny_per_usd / USD_MICROS_PER_CENT), value, Date.now(), id, lease).run()
     await prepareDelivery(env, (await find(env, id))!, lease)

@@ -33,14 +33,14 @@ func TestEmailStepChoiceAndFractionalGeminiFulfillment(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/v1/products":
 			productCalls++
-			body = `{"services":[{"service_id":"DEMO_PRODUCT_A","name":"Gemini","price":0.445,"stock":5}]}`
+			body = `{"services":[{"service_id":"S_09","name":"Gemini","price":0.445,"stock":5}]}`
 		case "/api/v1/me":
 			body = `{"wallet_balance":20.123456}`
 		case "/api/v1/order":
 			purchases++
 			body = `{"order_id":"original-gemini","order_status":"success"}`
 		case "/api/v1/order/original-gemini":
-			body = fmt.Sprintf(`{"order":{"order_id":"original-gemini","service_id":"DEMO_PRODUCT_A","requested_quantity":1,"order_status":"success","charged_amount":%s,"refunded_amount":%s,"net_charged_amount":%s,"delivered_quantity":1,"partial_delivery":false,"delivered_products":["http://claim.example.invalid/claim/fixture?token=a%%2Fb"]}}`, charged, refunded, net)
+			body = fmt.Sprintf(`{"order":{"order_id":"original-gemini","service_id":"S_09","requested_quantity":1,"order_status":"success","charged_amount":%s,"refunded_amount":%s,"net_charged_amount":%s,"delivered_quantity":1,"partial_delivery":false,"delivered_products":["http://claim.example.invalid/claim/fixture?token=a%%2Fb"]}}`, charged, refunded, net)
 		default:
 			t.Fatal("unexpected supplier call", r.URL.Path)
 		}
@@ -135,7 +135,7 @@ func TestSoldOutCheckoutRollsBackAndCanRetryAfterRestock(t *testing.T) {
 		if r.Method != "GET" || r.URL.Path != "/api/v1/products" {
 			t.Fatal("checkout must not purchase from supplier", r.Method, r.URL.Path)
 		}
-		body := fmt.Sprintf(`{"services":[{"service_id":"DEMO_PRODUCT_A","name":"Gemini","price":%s,"stock":%d,"availability_state":%q}]}`, price, stock, availability)
+		body := fmt.Sprintf(`{"services":[{"service_id":"S_09","name":"Gemini","price":%s,"stock":%d,"availability_state":%q}]}`, price, stock, availability)
 		return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(body))}, nil
 	})
 	execSQL(t, owner, `INSERT INTO catalog_plans(id,product_id,name,price_cents,enabled) VALUES('gemini-pro-18m','gemini','Gemini',9900,true)`)

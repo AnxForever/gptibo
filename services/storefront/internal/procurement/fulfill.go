@@ -12,18 +12,20 @@ import (
 	"time"
 )
 
-// This supplier's Gemini claim host redirects HTTP to HTTPS. Preserve the
-// original token and query bytes, while keeping all other delivery validation.
-func delivery_supplierDeliveryValue(service, value string) string {
+// Upstreams sometimes hand out claim links over HTTP even when the host only
+// serves HTTPS. Upgrade only a well-formed link whose host carries no port,
+// userinfo or unsafe bytes; every other value is left untouched so delivery
+// validation still decides.
+func delivery_supplierDeliveryValue(value string) string {
 	value = strings.TrimSpace(value)
-	if service != "DEMO_PRODUCT_A" || !strings.HasPrefix(value, "http://") {
+	if !strings.HasPrefix(value, "http://") || strings.ContainsAny(value, "<>\"'\t\r\n") {
 		return value
 	}
-	u, err := url.Parse(value)
-	if err == nil && u.User == nil && u.Host == "claim.example.invalid" {
-		return "https://" + strings.TrimPrefix(value, "http://")
+	u, e := url.Parse(value)
+	if e != nil || u.User != nil || u.Host != u.Hostname() || !strings.Contains(u.Hostname(), ".") {
+		return value
 	}
-	return value
+	return "https://" + strings.TrimPrefix(value, "http://")
 }
 
 func (s *Service) gmail(ctx context.Context, p Purchase) error {
@@ -142,12 +144,15 @@ func (s *Service) delivery_supplier(ctx context.Context, p Purchase) error {
 		return e
 	}
 	v := response.Order
+	normalize(&v)
 	if v.ID != *p.Supplier || (v.Service != "" && v.Service != p.Service) || v.Requested == nil || *v.Requested != 1 {
 		return errors.New("supplier order identity mismatch")
 	}
 	charged, e1 := usdMicros(v.Charged)
 	refunded, e2 := usdMicros(v.Refunded)
 	net, e3 := usdMicros(v.Net)
+	// A rejection needs the supplier's own refund counters to agree. Partial or
+	// missing evidence stays pending: the charge may still be reversed later.
 	if v.Status == "refunded" && e1 == nil && e2 == nil && e3 == nil && net == 0 && refunded == charged && v.Delivered != nil && *v.Delivered == 0 {
 		return s.reject(ctx, "delivery_supplier", p, "delivery_supplier-refunded", "供应商已确认采购退款，请通过原订单处理客户售后")
 	}
@@ -156,7 +161,13 @@ func (s *Service) delivery_supplier(ctx context.Context, p Purchase) error {
 		_, e = s.Store.DB.Exec(ctx, `UPDATE delivery_supplier_orders SET state='pending',next_check_at=$1,updated_at=$2 WHERE order_id=$3 AND lease_token=$4 AND lease_until>$2`, time.Now().UnixMilli()+int64(delay*1000), time.Now().UnixMilli(), p.ID, p.Lease)
 		return e
 	}
-	if e1 != nil || e2 != nil || e3 != nil || charged <= 0 || charged > p.MaxUSD*10000 || refunded != 0 || net != charged || v.Delivered == nil || *v.Delivered != 1 || v.Partial == nil || *v.Partial || len(v.Values) != 1 {
+	// An upstream that reports only the status, the charge and the delivered
+	// values proves completion with those alone: refunds and partial deliveries
+	// would have to appear as a different status.
+	if e1 != nil || e2 != nil || e3 != nil || charged <= 0 || charged > p.MaxUSD*10000 || refunded != 0 || net != charged || len(v.Values) != *v.Requested {
+		return errors.New("supplier purchase amount or quantity mismatch")
+	}
+	if !v.Minimal && (v.Delivered == nil || *v.Delivered != 1 || v.Partial == nil || *v.Partial) {
 		return errors.New("supplier purchase amount or quantity mismatch")
 	}
 	tx, e := s.Store.DB.Begin(ctx)
@@ -168,7 +179,7 @@ func (s *Service) delivery_supplier(ctx context.Context, p Purchase) error {
 	if e != nil {
 		return e
 	}
-	value := delivery_supplierDeliveryValue(p.Service, v.Values[0])
+	value := delivery_supplierDeliveryValue(v.Values[0])
 	if !delivery.ValidValue(orders.EmailKind(o.Plan), value) {
 		return errors.New("invalid supplier delivery value")
 	}

@@ -269,6 +269,11 @@ type NYOrder struct {
 	StatusRaw    string       `json:"status"`
 	RequestedRaw *int         `json:"quantity"`
 	ChargedRaw   *json.Number `json:"amount"`
+	// Minimal marks a successful order that carries none of the extended
+	// accounting fields. Its documented shape reports only the requested
+	// quantity, the charged amount, the status and the delivered values, so
+	// those are the whole proof of a complete purchase.
+	Minimal bool `json:"-"`
 }
 
 // normalize maps the field aliases some upstreams use onto the canonical
@@ -295,6 +300,18 @@ func normalize(v any) {
 		if x.Charged == nil {
 			x.Charged = x.ChargedRaw
 		}
+		if x.Refunded == nil && x.Net == nil && x.Delivered == nil && x.Partial == nil {
+			// Absence of every counter means this upstream never reports them.
+			// Fill only the two that a successful charge determines; the
+			// delivered count and partial flag stay absent so the caller can
+			// substitute them from the delivered values alone. A refunded or
+			// partially reported order never takes this path.
+			x.Minimal = x.Status == "success" && x.Charged != nil
+			if x.Minimal {
+				zero := json.Number("0")
+				x.Refunded, x.Net = &zero, x.Charged
+			}
+		}
 	case []NYProduct:
 		for i := range x {
 			normalize(&x[i])
@@ -302,10 +319,15 @@ func normalize(v any) {
 	}
 }
 
+// geminiService is the upstream id for the 18-month Gemini plan. The supplier
+// also lists a seven-day Gemini service under another id; that one does not
+// match the advertised duration.
+const geminiService = "S_09"
+
 var mappings = map[string]struct {
 	ID      string
 	Ceiling int64
-}{"gemini-pro-18m": {"DEMO_PRODUCT_A", 60}, "duolingo-12m": {"S_03", 60}}
+}{"gemini-pro-18m": {geminiService, 60}, "duolingo-12m": {"S_03", 60}}
 
 func (n *DeliverySupplier) Products(ctx context.Context) ([]NYProduct, error) {
 	var out struct {

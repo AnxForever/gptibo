@@ -138,15 +138,30 @@ DELIVERY_SUPPLIER_CNY_PER_USD=6.7      # 汇率，用于把上游美元报价换
 **要做的事**（`internal/procurement/clients.go`）：
 
 ```go
-// 现在是演示值，必须换成上游真实商品ID
+const geminiService = "S_09" // 18-month Gemini; S_01 is a seven-day service
+
 var mappings = map[string]struct{ ID string; Ceiling int64 }{
-    "gemini-pro-18m": {"<upstream product id>", 60},
-    "duolingo-12m":   {"<upstream product id>", 60},
+    "gemini-pro-18m": {geminiService, 60},
+    "duolingo-12m":   {"S_03", 60},
 }
 ```
 
-- `ID` = 上游的商品编号
+- `ID` = 上游的商品编号，必须真实存在于 `GET /products` 的 `services[].service_id`
 - `Ceiling` = 你愿意支付的**成本上限**（美分）。代码会用它和你后台设的售价比对，**成本高于售价会拒绝下单**（防止亏本卖）
+
+**订单响应有两种形状，适配器都接受。** 上游可能返回完整对账字段：
+
+```json
+{"order":{"order_id":"…","requested_quantity":1,"order_status":"success","charged_amount":0.5,"refunded_amount":0,"net_charged_amount":0.5,"delivered_quantity":1,"partial_delivery":false,"delivered_products":["…"]}}
+```
+
+也可能只返回短字段，没有退款、净额、交付数量这些计数器：
+
+```json
+{"order":{"order_id":"…","service_id":"S_03","quantity":1,"amount":0.5,"status":"success","delivered_products":["…"]}}
+```
+
+短字段情况下，`success` + 扣款额 + 交付值数量就是完成凭证：退款与部分交付在上游语义里必然表现为别的 `status`。若 `status` 为 `refunded` 但缺少退款计数器，系统**保持 pending 而不判失败** —— 扣款可能还没退回，误判会让客户钱货两空。
 
 ### 4. 账号供货商（Gmail）
 

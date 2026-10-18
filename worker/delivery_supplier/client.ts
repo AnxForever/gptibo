@@ -2,12 +2,12 @@ import { ApiError, hash, type Env } from '../platform.ts'
 import { boundedResponseText } from '../bounded-response.ts'
 
 export const mappings = {
-  'gemini-pro-18m': { id: 'DEMO_PRODUCT_A', maxUsdCents: 60 },
-  'duolingo-12m': { id: 'DEMO_PRODUCT_B', maxUsdCents: 38 },
+  'gemini-pro-18m': { id: 'S_09', maxUsdCents: 60 },
+  'duolingo-12m': { id: 'S_03', maxUsdCents: 60 },
 } as const
 export const isDeliverySupplierPlan = (plan: string): plan is keyof typeof mappings => Object.hasOwn(mappings, plan)
 export type Product = { service_id: string; name: string; price: number; stock: number; availability_state?: string }
-export type SupplierOrder = { order_id?: string; order_status?: string; service_id?: string; requested_quantity?: number; delivered_quantity?: number; charged_amount?: number; refunded_amount?: number; net_charged_amount?: number; partial_delivery?: boolean; delivered_products?: string[]; products?: string[]; retry_after_seconds?: number }
+export type SupplierOrder = { order_id?: string; order_status?: string; service_id?: string; requested_quantity?: number; delivered_quantity?: number; charged_amount?: number; refunded_amount?: number; net_charged_amount?: number; partial_delivery?: boolean; delivered_products?: string[]; products?: string[]; retry_after_seconds?: number; status?: string; quantity?: number; amount?: number }
 export const USD_MICROS_PER_CENT = 10_000
 export function usdMicros(value: unknown) {
   // Compare supplier prices, balances and receipts in integer micro-USDT.

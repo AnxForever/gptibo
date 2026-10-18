@@ -29,7 +29,7 @@ async function setup(t: Context, plan: keyof typeof mappings = 'gemini-pro-18m',
     if (String(url).endsWith('/me')) return Response.json({ wallet_balance: state.balance })
     if (String(url).endsWith('/order')) {
       state.posts.push({ key: headers.get('Idempotency-Key'), body: String(options.body) })
-      assert.deepEqual(JSON.parse(String(options.body)), { service_id: mappings[plan].id, quantity: 1, precheck: true, include_proofs: true })
+      assert.deepEqual(JSON.parse(String(options.body)), { service_id: mappings[plan].id, quantity: 1 })
       if (!/^[A-Za-z0-9_-]{8,128}$/.test(headers.get('Idempotency-Key') ?? '')) return Response.json({ error_code: 'INVALID_IDEMPOTENCY_KEY', error: 'PRIVATE-UPSTREAM-ERROR' }, { status: 400 })
       await state.duringPost?.()
       if (state.losePost) throw new Error('lost response')
@@ -112,7 +112,7 @@ for (const plan of Object.keys(mappings) as (keyof typeof mappings)[]) test(plan
   assert.match(s.state.posts[0].key!, /^[A-Za-z0-9_-]{8,128}$/)
   const result = await s.view(); assert.equal(result.status, 'success'); assert.equal(result.delivery.value, s.value)
   const mail = JSON.parse(s.state.mails[0].body); assert.deepEqual(mail.to, ['customer@example.test']); assert.ok(mail.text.includes(s.value))
-  const cost = plan === 'gemini-pro-18m' ? 402 : 255
+  const cost = Math.round(s.state.actual * 6.7 * 100)
   assert.equal(s.db.prepare('SELECT cost_cents FROM accounting_candidates WHERE order_id=?').get(s.order.id)!.cost_cents, cost)
   s.env.DELIVERY_SUPPLIER_CNY_PER_USD = '9'
   assert.equal(s.db.prepare('SELECT actual_cost_cents FROM delivery_supplier_orders WHERE order_id=?').get(s.order.id)!.actual_cost_cents, cost)
@@ -304,4 +304,40 @@ test('only explicit invalid receipt without an order identity is a definite reje
   }
   response({ error_code: 'INVALID_IDEMPOTENCY_KEY', order_id: 'API_PAID', order_status: 'pending' }, 400)
   assert.equal((await call<{ order_id: string }>(s.env, '/order', 'legacy/receipt', '{}')).order_id, 'API_PAID')
+})
+
+test('order shape with only short fields and no counters still delivers', async t => {
+  const s = await setup(t, 'duolingo-12m')
+  t.mock.method(globalThis, 'fetch', async (url: string | URL | Request) => {
+    if (String(url) === 'https://api.resend.com/emails') return Response.json({ id: 'mail_min' })
+    if (String(url).endsWith('/products')) return Response.json({ services: [{ service_id: 'S_03', name: 'Duolingo Super 12M', price: 0.5, stock: 10 }] })
+    if (String(url).endsWith('/me')) return Response.json({ wallet_balance: 1 })
+    if (String(url).endsWith('/order')) return Response.json({ order_id: 'API_MIN', order_status: 'success' })
+    return Response.json({ success: true, order: { order_id: 'API_MIN', service_id: 'S_03', quantity: 1, amount: 0.5, status: 'success', delivered_products: [s.value] } })
+  })
+  await s.pay(); await reconcileDeliverySupplier(s.env)
+  const result = await s.view()
+  assert.equal(result.status, 'success'); assert.equal(result.delivery.value, s.value)
+  const row = s.db.prepare('SELECT state,actual_usd_micros,actual_cost_cents FROM delivery_supplier_orders WHERE order_id=?').get(s.order.id)!
+  assert.equal(row.state, 'purchased'); assert.equal(row.actual_usd_micros, 500000); assert.equal(row.actual_cost_cents, 335)
+})
+
+test('short-field orders stay pending until the status says success', async t => {
+  const s = await setup(t, 'duolingo-12m')
+  let status = 'pending'
+  t.mock.method(globalThis, 'fetch', async (url: string | URL | Request) => {
+    if (String(url).endsWith('/products')) return Response.json({ services: [{ service_id: 'S_03', name: 'Duolingo Super 12M', price: 0.5, stock: 10 }] })
+    if (String(url).endsWith('/me')) return Response.json({ wallet_balance: 1 })
+    if (String(url).endsWith('/order')) return Response.json({ order_id: 'API_PEND', order_status: 'pending' })
+    return Response.json({ success: true, order: { order_id: 'API_PEND', service_id: 'S_03', quantity: 1, amount: 0.5, status, delivered_products: [], retry_after_seconds: 30 } })
+  })
+  await s.pay(); await reconcileDeliverySupplier(s.env)
+  assert.equal((await s.view()).delivery.value, undefined)
+  assert.equal(s.db.prepare('SELECT state FROM delivery_supplier_orders WHERE order_id=?').get(s.order.id)!.state, 'pending')
+  status = 'refunded'
+  s.db.prepare('UPDATE delivery_supplier_orders SET next_check_at=0 WHERE order_id=?').run(s.order.id)
+  await reconcileDeliverySupplier(s.env)
+  // Without refund counters a refusal is not proven; the charge may reverse later.
+  assert.equal(s.db.prepare('SELECT state FROM delivery_supplier_orders WHERE order_id=?').get(s.order.id)!.state, 'pending')
+  assert.equal((await s.view()).status, 'processing')
 })

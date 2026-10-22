@@ -1,18 +1,27 @@
+import type { CSSProperties } from 'react'
+
 /**
- * Placeholder illustration for products that are announced but not on sale.
- * It deliberately reuses the tier-card language of the ChatGPT deck — same
- * 174×110 sheet, pastel gradients, border and shadow — so an upcoming product
- * sits in the grid without looking like a different design system.
+ * Upcoming products are shown with their real brand mark rather than a
+ * placeholder: the stores we resell all have a recognisable glyph, and a
+ * generic shape next to a real logo (Claude, Grok, OpenAI) reads as broken.
+ * Muse ships a coloured logo; the rest are monochrome masks tinted per brand.
  */
-export function UpcomingScene({ name, index = 0 }: { name: string; index?: number }) {
-  const letter = name.trim().slice(0, 1).toUpperCase()
-  return <div className="upcoming-deck" data-tint={index % 4} aria-hidden="true">
-    <span className="upcoming-sheet" data-depth="2" />
-    <span className="upcoming-sheet" data-depth="1" />
-    <span className="upcoming-sheet" data-depth="0">
-      <span className="upcoming-sheet-label">即将上架</span>
-      <strong className="upcoming-sheet-name">{name}</strong>
-      <span className="upcoming-sheet-letter">{letter}</span>
-    </span>
+const BRANDS: Record<string, { color: string; dark?: string; image?: boolean }> = {
+  muse: { color: '#2f6bff', image: true },
+  cursor: { color: '#0f0f0f', dark: '#f2f2f2' },
+  perplexity: { color: '#1fb8cd' },
+  canva: { color: '#00c4cc' },
+  notion: { color: '#0f0f0f', dark: '#f2f2f2' },
+}
+
+export function UpcomingScene({ productId }: { productId: string }) {
+  const brand = BRANDS[productId]
+  if (!brand) return null
+  return <div className="brand-art" data-brand={productId} style={{ '--brand': brand.color, '--brand-dark': brand.dark ?? brand.color } as CSSProperties} aria-hidden="true">
+    <span className="brand-art-glow" />
+    {brand.image
+      ? <img className="brand-art-logo" src={`/brands/${productId}.svg`} alt="" width={84} height={84} />
+      : <span className="brand-art-logo" style={{ maskImage: `url(/brands/${productId}.svg)` }} />}
+    <span className="brand-art-floor" />
   </div>
 }

@@ -81,7 +81,8 @@
 .brand-art-logo { position:relative; z-index:1; display:block; width:84px; height:84px; background:var(--brand); mask-size:contain; mask-position:center; mask-repeat:no-repeat; animation:brand-float 6.5s ease-in-out infinite; }
 img.brand-art-logo { background:none; mask:none; object-fit:contain; }
 .brand-art-floor { position:absolute; bottom:34px; width:86px; height:10px; border-radius:50%; background:radial-gradient(ellipse,#0f172a1f,transparent 72%); filter:blur(6px); }
-.dark .brand-art-logo { background:var(--brand-dark); }
+.dark .brand-art-floor { background:radial-gradient(ellipse,#ffffff1a,transparent 72%); }
+.dark span.brand-art-logo { background:var(--brand-dark); }
 @keyframes brand-float {
   0%,100% { transform:translateY(0); }
   50% { transform:translateY(-7px); }

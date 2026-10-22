@@ -51,7 +51,7 @@ func (s Service) renderView(o Order, admin bool, related viewRelations) (map[str
 	contacts := related.contacts
 	out["supportContacts"] = contacts
 	supplier := related.supplier
-	out["manualFulfillment"] = (o.Mode == "live" && o.Test == 0 && o.Plan == "pro-25x" && len(supplier) == 0) || EmailKind(o.Plan) != ""
+	out["manualFulfillment"] = (o.Mode == "live" && o.Test == 0 && o.Plan == "pro-25x" && len(supplier) == 0) || o.Delivery() != ""
 	if len(supplier) > 0 && o.Mode == "live" && o.Test == 0 {
 		t := supplier[0]
 		attempts := related.attempts
@@ -148,7 +148,7 @@ func (s Service) renderView(o Order, admin bool, related viewRelations) (map[str
 		v["message"] = message
 		out["xgift"] = v
 	}
-	if kind := EmailKind(o.Plan); kind != "" {
+	if kind := o.Delivery(); kind != "" {
 		d, n := related.delivery, related.purchase
 		value := map[string]any{"kind": kind, "status": "waiting", "sentAt": nil}
 		if len(d) > 0 {
@@ -189,6 +189,15 @@ func EmailKind(plan string) string {
 		return "cdk"
 	}
 	return ""
+}
+
+// Delivery returns the format this order was sold under. Orders created before
+// the catalogue carried delivery_kind fall back to the legacy plan switch.
+func (o Order) Delivery() string {
+	if o.DeliveryKind != "" {
+		return o.DeliveryKind
+	}
+	return EmailKind(o.Plan)
 }
 func (s Service) CustomerList(ctx context.Context, access Access) (map[string]any, error) {
 	list, e := List(ctx, s.Store.DB, `SELECT to_jsonb(o) FROM orders o WHERE is_test=0 AND (owner_hash=$1 OR customer_email=NULLIF($2,'')) AND ($3='' OR partner_id=$3) ORDER BY created_at DESC,id DESC LIMIT 100`, access.OwnerHash, access.Email, domains.Current(ctx).PartnerID)

@@ -88,5 +88,6 @@ func LoadProcurement() (*procurement.Service, error) {
 			return nil, errors.New("invalid CANBOSO_CNY_PER_USD")
 		}
 	}
+	s.Prepare()
 	return s, nil
 }

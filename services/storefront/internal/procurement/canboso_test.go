@@ -113,31 +113,27 @@ func TestCanbosoValueRejectsInjectedCredentials(t *testing.T) {
 	}
 }
 
-func TestKindPrecedence(t *testing.T) {
-	s := &Service{}
-	if got := s.kind("plus"); got != "" {
-		t.Fatal("plus owned without a channel", got)
+func TestPickKind(t *testing.T) {
+	cases := []struct {
+		name     string
+		sp       supply
+		legacy   string
+		canboso  bool
+		delivery bool
+		account  bool
+		want     string
+	}{
+		{"unmapped plan stays unsupported", supply{}, "", true, true, true, ""},
+		{"legacy mapping still works", supply{}, "gmail", false, true, true, "gmail"},
+		{"catalogue row wins", supply{Supplier: "canboso", Product: "p1", Ceiling: 987}, "", true, true, true, "canboso"},
+		{"unconfigured channel falls back to legacy", supply{Supplier: "canboso"}, "gmail", false, true, true, "gmail"},
+		{"unconfigured channel cannot claim a new plan", supply{Supplier: "canboso"}, "", false, true, true, ""},
+		{"delivery row", supply{Supplier: "delivery_supplier", Product: "S_03", Ceiling: 60}, "", true, true, false, "delivery_supplier"},
+		{"delivery row ignored when client missing", supply{Supplier: "delivery_supplier"}, "", true, false, true, ""},
 	}
-	if got := s.kind("gmail-account"); got != "gmail" {
-		t.Fatal("legacy gmail mapping lost", got)
-	}
-	if got := s.kind("duolingo-12m"); got != "delivery_supplier" {
-		t.Fatal("delivery supplier mapping lost", got)
-	}
-	if s.Supports("plus") {
-		t.Fatal("plus supported without a channel")
-	}
-	s.Canboso = &CanbosoSupplier{Key: testCanbosoKey}
-	if got := s.kind("plus"); got != "canboso" {
-		t.Fatal("canboso did not claim plus", got)
-	}
-	if got := s.kind("gmail-account"); got != "canboso" {
-		t.Fatal("canboso did not take precedence for gmail-account", got)
-	}
-	if got := s.kind("duolingo-12m"); got != "delivery_supplier" {
-		t.Fatal("canboso captured an unmapped plan", got)
-	}
-	if !s.Supports("plus") || s.Supports("pro-5x") {
-		t.Fatal("Supports disagrees with kind")
+	for _, c := range cases {
+		if got := pickKind(c.sp, c.legacy, c.canboso, c.delivery, c.account); got != c.want {
+			t.Fatalf("%s: pickKind=%q want %q", c.name, got, c.want)
+		}
 	}
 }

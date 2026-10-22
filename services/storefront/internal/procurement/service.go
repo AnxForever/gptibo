@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -30,6 +31,7 @@ type Service struct {
 	GoodsID, MaxCents                       int64
 	FX                                      float64
 	CanbosoFX                               float64
+	cache                                   *supplyCache
 }
 type Purchase struct {
 	ID           string  `json:"order_id"`
@@ -61,10 +63,9 @@ type Purchase struct {
 	Delivery     *string `json:"delivery"`
 }
 
-// canbosoMappings fixes the upstream product and the USD cost ceiling (in
-// cents) for each plan this channel can deliver. Only instant account
-// deliveries are listed: slots and account upgrades are filled by hand
-// upstream and would arrive without credentials.
+// canbosoMappings and mappings remain the fallback for plans that predate the
+// catalogue's supplier columns; new plans carry supplier + product + ceiling in
+// catalog_plans and never need a code change.
 var canbosoMappings = map[string]struct {
 	Product string
 	Ceiling int64
@@ -72,6 +73,23 @@ var canbosoMappings = map[string]struct {
 	"plus":          {"6ad8a9470c1a1b0e66502c1c", 987},
 	"gmail-account": {"6ad90b1b0c1a1b0e66654295", 96},
 }
+
+// supply is the catalogue row that decides who fulfils a plan and at what cost.
+type supply struct {
+	Supplier string
+	Product  string
+	Ceiling  int64
+}
+
+type supplyCache struct {
+	mu     sync.Mutex
+	loaded time.Time
+	byPlan map[string]supply
+}
+
+const supplyTTL = 30 * time.Second
+
+func newSupplyCache() *supplyCache { return &supplyCache{} }
 
 func table(kind string) string {
 	if kind == "gmail" {
@@ -94,6 +112,8 @@ func find(ctx context.Context, q orders.Query, kind, id string) (Purchase, error
 	}
 	return p, e
 }
+
+// Kind is the legacy plan→channel switch, kept for plans without a supplier row.
 func Kind(plan string) string {
 	if plan == "gmail-account" {
 		return "gmail"
@@ -104,28 +124,108 @@ func Kind(plan string) string {
 	return ""
 }
 
-// kind resolves a plan against the channels that are actually configured: the
-// Canboso mapping wins over the legacy account supplier only while a Canboso
-// client exists, so an unconfigured channel never captures a plan.
-func (s *Service) kind(plan string) string {
-	if s.Canboso != nil {
-		if _, ok := canbosoMappings[plan]; ok {
+// pickKind prefers the catalogue row but only when that channel is configured;
+// an unconfigured channel must never capture a plan from its legacy mapping.
+func pickKind(sp supply, legacy string, canboso, delivery, account bool) string {
+	switch sp.Supplier {
+	case "canboso":
+		if canboso {
 			return "canboso"
 		}
+	case "delivery_supplier":
+		if delivery {
+			return "delivery_supplier"
+		}
+	case "gmail":
+		if account {
+			return "gmail"
+		}
 	}
-	return Kind(plan)
+	return legacy
 }
 
-// Supports reports whether automatic procurement owns the plan at all.
+// Prepare initialises the catalogue cache; call once while constructing.
+func (s *Service) Prepare() { s.cache = newSupplyCache() }
+
+func (s *Service) supplies(ctx context.Context) (map[string]supply, error) {
+	if s.Store == nil {
+		return map[string]supply{}, errors.New("no store")
+	}
+	c := s.cache
+	if c == nil {
+		// Uninitialised service (tests): read through without caching.
+		return s.loadSupplies(ctx)
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.byPlan != nil && time.Since(c.loaded) < supplyTTL {
+		return c.byPlan, nil
+	}
+	out, e := s.loadSupplies(ctx)
+	if e != nil {
+		return nil, e
+	}
+	c.byPlan, c.loaded = out, time.Now()
+	return out, nil
+}
+
+func (s *Service) loadSupplies(ctx context.Context) (map[string]supply, error) {
+	rows, e := s.Store.DB.Query(ctx, `SELECT id,supplier,supplier_product,COALESCE(supplier_ceiling_cents,0) FROM catalog_plans`)
+	if e != nil {
+		return nil, e
+	}
+	defer rows.Close()
+	out := map[string]supply{}
+	for rows.Next() {
+		var id string
+		var sp supply
+		if e = rows.Scan(&id, &sp.Supplier, &sp.Product, &sp.Ceiling); e != nil {
+			return nil, e
+		}
+		out[id] = sp
+	}
+	if e = rows.Err(); e != nil {
+		return nil, e
+	}
+	return out, nil
+}
+
+func (s *Service) supplyOf(ctx context.Context, plan string) supply {
+	if m, e := s.supplies(ctx); e == nil {
+		return m[plan]
+	}
+	return supply{}
+}
+
+// kind resolves a plan against the catalogue and the channels actually configured.
+func (s *Service) kind(ctx context.Context, plan string) string {
+	return pickKind(s.supplyOf(ctx, plan), Kind(plan), s.Canboso != nil, s.DeliverySupplier != nil, s.AccountSupplier != nil)
+}
+
+// Supports reports whether automatic procurement owns the plan at all. The
+// catalogue lookup is cached for supplyTTL, so callers do not need a context.
 func (s *Service) Supports(plan string) bool {
-	return s.kind(plan) != ""
+	return s.kind(context.Background(), plan) != ""
 }
 
 func (s *Service) Enabled(plan string) bool {
+	return s.enabledKind(s.kind(context.Background(), plan))
+}
+
+// kindOf prefers the snapshot taken at order creation so a later catalogue edit
+// can never move an existing order to a different procurement table.
+func (s *Service) kindOf(o orders.Order) string {
+	if o.ProcurementKind != "" {
+		return o.ProcurementKind
+	}
+	return s.kind(context.Background(), o.Plan)
+}
+
+func (s *Service) enabledKind(kind string) bool {
 	if !s.EmailEnabled || !s.PaymentReady || s.Delivery.Sender == nil {
 		return false
 	}
-	switch s.kind(plan) {
+	switch kind {
 	case "gmail":
 		return s.GmailEnabled && s.AccountSupplier != nil && s.GoodsID > 0 && s.MaxCents > 0
 	case "delivery_supplier":
@@ -135,8 +235,28 @@ func (s *Service) Enabled(plan string) bool {
 	}
 	return false
 }
+
+// supplierQuote is the product id plus USD-cent ceiling for a plan, preferring
+// the catalogue row and falling back to the legacy constant maps.
+func (s *Service) supplierQuote(ctx context.Context, plan, kind string) (string, int64) {
+	sp := s.supplyOf(ctx, plan)
+	if sp.Product != "" && sp.Ceiling > 0 {
+		return sp.Product, sp.Ceiling
+	}
+	switch kind {
+	case "delivery_supplier":
+		m := mappings[plan]
+		return m.ID, m.Ceiling
+	case "canboso":
+		m := canbosoMappings[plan]
+		return m.Product, m.Ceiling
+	}
+	return "", 0
+}
+
 func (s *Service) quote(ctx context.Context, plan string, sale int64, cost *int64) (Goods, error) {
-	if !s.Enabled(plan) {
+	kind := s.kind(ctx, plan)
+	if !s.enabledKind(kind) {
 		return Goods{}, fault.New(409, "自动发货暂未开放。")
 	}
 	// This runs inside the order-creation transaction, holding advisory locks and
@@ -144,35 +264,37 @@ func (s *Service) quote(ctx context.Context, plan string, sale int64, cost *int6
 	// timeout, so the upstream leg is capped well below that.
 	ctx, cancel := context.WithTimeout(ctx, 6*time.Second)
 	defer cancel()
+	product, usdCeiling := s.supplierQuote(ctx, plan, kind)
 	ceiling := s.MaxCents
-	switch s.kind(plan) {
+	switch kind {
 	case "delivery_supplier":
-		ceiling = int64(math.Ceil(float64(mappings[plan].Ceiling) * s.FX))
+		ceiling = int64(math.Ceil(float64(usdCeiling) * s.FX))
 	case "canboso":
-		ceiling = int64(math.Ceil(float64(canbosoMappings[plan].Ceiling) * s.CanbosoFX))
+		ceiling = int64(math.Ceil(float64(usdCeiling) * s.CanbosoFX))
 	}
 	if ceiling >= sale || (cost != nil && (ceiling >= *cost || *cost > sale)) {
 		return Goods{}, fault.New(409, "采购成本与售价配置不匹配。")
 	}
-	if s.kind(plan) == "gmail" {
+	switch kind {
+	case "gmail":
 		g, e := s.AccountSupplier.Goods(ctx, s.GoodsID)
 		if e == nil {
 			e = validateGoods(g, ceiling)
 		}
 		return g, e
-	}
-	if s.kind(plan) == "canboso" {
+	case "canboso":
 		products, e := s.Canboso.Products(ctx)
 		if e == nil {
-			e = validateCanboso(products, canbosoMappings[plan].Product, canbosoMappings[plan].Ceiling)
+			e = validateCanboso(products, product, usdCeiling)
+		}
+		return Goods{}, e
+	default:
+		products, e := s.DeliverySupplier.Products(ctx)
+		if e == nil {
+			e = validateNY(products, product, usdCeiling)
 		}
 		return Goods{}, e
 	}
-	products, e := s.DeliverySupplier.Products(ctx)
-	if e == nil {
-		e = validateNY(products, mappings[plan].ID, mappings[plan].Ceiling)
-	}
-	return Goods{}, e
 }
 func (s *Service) Snapshot(ctx context.Context, tx pgx.Tx, o orders.Order, _ orders.CreateInput) error {
 	supplyCost, e := orders.SupplyCost(ctx, tx, o.ID)
@@ -186,33 +308,45 @@ func (s *Service) Snapshot(ctx context.Context, tx pgx.Tx, o orders.Order, _ ord
 	if e != nil {
 		return e
 	}
-	var instructions string
-	if e = tx.QueryRow(ctx, `SELECT delivery_instructions FROM catalog_plans WHERE id=$1`, o.Plan).Scan(&instructions); e != nil {
+	var instructions, supplier, product string
+	var usdCeiling int64
+	if e = tx.QueryRow(ctx, `SELECT delivery_instructions,supplier,supplier_product,COALESCE(supplier_ceiling_cents,0) FROM catalog_plans WHERE id=$1`, o.Plan).Scan(&instructions, &supplier, &product, &usdCeiling); e != nil {
 		return e
 	}
-	switch s.kind(o.Plan) {
+	kind := s.kind(ctx, o.Plan)
+	if product == "" || usdCeiling <= 0 {
+		product, usdCeiling = s.supplierQuote(ctx, o.Plan, kind)
+	}
+	if product == "" || usdCeiling <= 0 {
+		return fault.New(409, "该商品未配置供货渠道，请联系管理员。")
+	}
+	switch kind {
 	case "gmail":
 		_, e = tx.Exec(ctx, `INSERT INTO account_supplier_orders(order_id,goods_id,goods_name,api_base,app_id,max_cost_cents,instructions,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, o.ID, g.ID, g.Name, s.AccountSupplier.Base, s.AccountSupplier.App, s.MaxCents, instructions, time.Now().UnixMilli())
 	case "canboso":
-		m := canbosoMappings[o.Plan]
 		// The buyer key travels in the header; the stored body must not carry it.
-		body := raw(map[string]any{"product_id": m.Product, "quantity": 1})
-		_, e = tx.Exec(ctx, `INSERT INTO canboso_orders(order_id,product_id,credential_hash,request_key,request_body,max_usd_cents,cny_per_usd,instructions,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, o.ID, m.Product, security.Hash(s.Canboso.Key), "cbx_"+o.ID, body, m.Ceiling, s.CanbosoFX, instructions, time.Now().UnixMilli())
+		body := raw(map[string]any{"product_id": product, "quantity": 1})
+		_, e = tx.Exec(ctx, `INSERT INTO canboso_orders(order_id,product_id,credential_hash,request_key,request_body,max_usd_cents,cny_per_usd,instructions,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, o.ID, product, security.Hash(s.Canboso.Key), "cbx_"+o.ID, body, usdCeiling, s.CanbosoFX, instructions, time.Now().UnixMilli())
 	default:
-		m := mappings[o.Plan]
 		// Only the two documented fields: upstreams reject unknown parameters.
-		body := raw(map[string]any{"service_id": m.ID, "quantity": 1})
-		_, e = tx.Exec(ctx, `INSERT INTO delivery_supplier_orders(order_id,service_id,credential_hash,request_key,request_body,max_usd_cents,cny_per_usd,instructions,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, o.ID, m.ID, security.Hash(s.DeliverySupplier.Key), "ymx_"+o.ID, body, m.Ceiling, s.FX, instructions, time.Now().UnixMilli())
+		body := raw(map[string]any{"service_id": product, "quantity": 1})
+		_, e = tx.Exec(ctx, `INSERT INTO delivery_supplier_orders(order_id,service_id,credential_hash,request_key,request_body,max_usd_cents,cny_per_usd,instructions,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, o.ID, product, security.Hash(s.DeliverySupplier.Key), "ymx_"+o.ID, body, usdCeiling, s.FX, instructions, time.Now().UnixMilli())
 	}
 	return e
 }
-func (s *Service) Availability(_ context.Context, plans []catalog.Plan) []catalog.Plan {
+func (s *Service) Availability(ctx context.Context, plans []catalog.Plan) []catalog.Plan {
+	m, e := s.supplies(ctx)
+	if e != nil {
+		m = map[string]supply{}
+	}
+	canboso, delivery, account := s.Canboso != nil, s.DeliverySupplier != nil, s.AccountSupplier != nil
 	for i := range plans {
 		p := &plans[i]
-		if !s.Supports(p.ID) {
+		kind := pickKind(m[p.ID], Kind(p.ID), canboso, delivery, account)
+		if kind == "" {
 			continue
 		}
-		if !s.Enabled(p.ID) {
+		if !s.enabledKind(kind) {
 			p.Enabled = 0
 		}
 	}
@@ -254,7 +388,10 @@ func (s *Service) Fulfill(ctx context.Context, id string) error {
 	if e != nil {
 		return e
 	}
-	kind := s.kind(o.Plan)
+	kind := o.ProcurementKind
+	if kind == "" {
+		kind = s.kind(ctx, o.Plan)
+	}
 	if kind == "" {
 		return nil
 	}

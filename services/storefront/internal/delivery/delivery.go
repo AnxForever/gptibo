@@ -32,8 +32,10 @@ func claimURL(value string) string {
 	}
 	return value
 }
-func Message(plan, id, value, instructions, origin string, brands ...mailer.Brand) (mailer.Message, error) {
-	kind := orders.EmailKind(plan)
+func Message(kind, plan, id, value, instructions, origin string, brands ...mailer.Brand) (mailer.Message, error) {
+	if kind == "" {
+		kind = orders.EmailKind(plan)
+	}
 	if kind == "" {
 		return mailer.Message{}, fault.New(400, "该商品不支持邮件交付。")
 	}
@@ -96,7 +98,7 @@ func (s Service) View(ctx context.Context, id string) (map[string]any, error) {
 	if e != nil {
 		return nil, e
 	}
-	kind := orders.EmailKind(o.Plan)
+	kind := o.Delivery()
 	if kind == "" {
 		return nil, orders.Conflict()
 	}
@@ -144,7 +146,7 @@ func (s Service) SaveDraft(ctx context.Context, tx pgx.Tx, o orders.Order, value
 	if e != nil {
 		return e
 	}
-	m, e := Message(o.Plan, o.ID, value, instructions, s.Origin, brand)
+	m, e := Message(o.Delivery(), o.Plan, o.ID, value, instructions, s.Origin, brand)
 	if e != nil {
 		return e
 	}
@@ -152,7 +154,7 @@ func (s Service) SaveDraft(ctx context.Context, tx pgx.Tx, o orders.Order, value
 	if e != nil {
 		return e
 	}
-	tag, e := tx.Exec(ctx, `INSERT INTO email_deliveries(order_id,kind,value,instructions,mail_body,request_key,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$7) ON CONFLICT(order_id) DO UPDATE SET value=excluded.value,instructions=excluded.instructions,mail_body=excluded.mail_body,request_key=excluded.request_key,updated_at=excluded.updated_at,version=email_deliveries.version+1 WHERE email_deliveries.status='draft'`, o.ID, orders.EmailKind(o.Plan), value, instructions, body, security.ID(), time.Now().UnixMilli())
+	tag, e := tx.Exec(ctx, `INSERT INTO email_deliveries(order_id,kind,value,instructions,mail_body,request_key,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$7) ON CONFLICT(order_id) DO UPDATE SET value=excluded.value,instructions=excluded.instructions,mail_body=excluded.mail_body,request_key=excluded.request_key,updated_at=excluded.updated_at,version=email_deliveries.version+1 WHERE email_deliveries.status='draft'`, o.ID, o.Delivery(), value, instructions, body, security.ID(), time.Now().UnixMilli())
 	if e == nil && tag.RowsAffected() != 1 {
 		return orders.Conflict()
 	}
@@ -194,7 +196,7 @@ func (s Service) Act(ctx context.Context, id, token string, in Input, system boo
 	if e != nil {
 		return e
 	}
-	if orders.EmailKind(o.Plan) == "" {
+	if o.Delivery() == "" {
 		return orders.Conflict()
 	}
 	row, e := find(ctx, tx, id)
@@ -223,7 +225,7 @@ func (s Service) Act(ctx context.Context, id, token string, in Input, system boo
 		if auto || o.Plan == "gmail-account" || (row != nil && row["status"] != "draft") {
 			return fault.New(409, "自动采购或已开始发送的原发货内容不能替换。")
 		}
-		if !ValidValue(orders.EmailKind(o.Plan), in.Value) || strings.TrimSpace(in.Instructions) == "" || utf8.RuneCountInString(in.Instructions) > 2000 {
+		if !ValidValue(o.Delivery(), in.Value) || strings.TrimSpace(in.Instructions) == "" || utf8.RuneCountInString(in.Instructions) > 2000 {
 			return fault.New(400, "请填写有效发货内容和 1–2000 字领取说明。")
 		}
 		if e = s.SaveDraft(ctx, tx, o, strings.TrimSpace(in.Value), strings.TrimSpace(in.Instructions)); e != nil {

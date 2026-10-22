@@ -180,7 +180,7 @@ func (s *Service) delivery_supplier(ctx context.Context, p Purchase) error {
 		return e
 	}
 	value := delivery_supplierDeliveryValue(v.Values[0])
-	if !delivery.ValidValue(orders.EmailKind(o.Plan), value) {
+	if !delivery.ValidValue(o.Delivery(), value) {
 		return errors.New("invalid supplier delivery value")
 	}
 	_, e = tx.Exec(ctx, `UPDATE delivery_supplier_orders SET state='purchased',actual_usd_cents=$1,actual_cost_cents=$2,value=$3,updated_at=$4,actual_usd_micros=$6 WHERE order_id=$5`, (charged+5000)/10000, int64(math.Round(float64(charged)*p.FX/10000)), value, time.Now().UnixMilli(), p.ID, charged)
@@ -286,7 +286,7 @@ func (s *Service) settleCanboso(ctx context.Context, p Purchase, order CanbosoOr
 	if e != nil {
 		return e
 	}
-	if !delivery.ValidValue(orders.EmailKind(o.Plan), value) {
+	if !delivery.ValidValue(o.Delivery(), value) {
 		return errors.New("invalid supplier delivery value")
 	}
 	_, e = tx.Exec(ctx, `UPDATE canboso_orders SET state='purchased',actual_usd_cents=$1,actual_cost_cents=$2,delivery=$3,value=$4,updated_at=$5,actual_usd_micros=$6 WHERE order_id=$7`, usd, int64(math.Round(float64(usd)*p.FX)), raw(order.Delivery.Accounts), value, time.Now().UnixMilli(), usd*10000, p.ID)

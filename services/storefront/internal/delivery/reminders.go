@@ -188,7 +188,7 @@ func (s Service) PreviewMembership(ctx context.Context, plan, key string) (map[s
 	if plan == "duolingo-12m" {
 		value = "https://www.duolingo.com/claim/super?code=PREVIEW-ONLY-NOT-A-REAL-CODE"
 	}
-	m, e := Message(plan, "YMX-PREVIEW", value, instructions, s.Origin)
+	m, e := Message(orders.EmailKind(plan), plan, "YMX-PREVIEW", value, instructions, s.Origin)
 	if e != nil {
 		return nil, e
 	}

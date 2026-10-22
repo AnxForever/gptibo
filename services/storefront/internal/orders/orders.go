@@ -65,6 +65,11 @@ type Order struct {
 	Test        int     `json:"is_test"`
 	Blocked     int     `json:"redemption_blocked"`
 	Note        string  `json:"purchase_note"`
+	// DeliveryKind and ProcurementKind are snapshotted from the plan when the
+	// order is created, so editing the catalogue later never redirects an
+	// existing order to another delivery format or procurement table.
+	DeliveryKind    string `json:"delivery_kind"`
+	ProcurementKind string `json:"procurement_kind"`
 }
 type Query interface {
 	Query(context.Context, string, ...any) (pgx.Rows, error)
@@ -280,7 +285,8 @@ func (s Service) Create(ctx context.Context, access Access, in CreateInput) (Ord
 	var price int64
 	var cost *int64
 	var enabled, partnerEnabled, supportsWarranty bool
-	e = tx.QueryRow(ctx, `SELECT name,price_cents,purchase_note,enabled,partner_enabled,supports_warranty,product_id FROM catalog_plans WHERE id=$1 FOR SHARE`, in.Plan).Scan(&name, &price, &note, &enabled, &partnerEnabled, &supportsWarranty, &productID)
+	var deliveryKind, supplier string
+	e = tx.QueryRow(ctx, `SELECT name,price_cents,purchase_note,enabled,partner_enabled,supports_warranty,product_id,delivery_kind,supplier FROM catalog_plans WHERE id=$1 FOR SHARE`, in.Plan).Scan(&name, &price, &note, &enabled, &partnerEnabled, &supportsWarranty, &productID, &deliveryKind, &supplier)
 	if e == pgx.ErrNoRows {
 		return out, false, Conflict()
 	}
@@ -366,7 +372,7 @@ func (s Service) Create(ctx context.Context, access Access, in CreateInput) (Ord
 	if !s.Testing {
 		mode, createNote = "live", "创建订单，等待付款"
 	}
-	_, e = tx.Exec(ctx, `INSERT INTO orders(id,owner_hash,idempotency_key,plan,plan_name,price_cents,mode,status,created_at,updated_at,last_event_id,customer_email,partner_id,partner_name,cost_cents,purchase_note,upstream_partner_id,upstream_cost_cents) VALUES($1,$2,$3,$4,$5,$6,$14,'pending',$7,$7,$8,$9,$10,$11,$12,$13,$15,$16)`, id, access.OwnerHash, in.Key, in.Plan, name, price, now, event, email, partnerID, partnerName, cost, note, mode, upstreamID, upstreamCost)
+	_, e = tx.Exec(ctx, `INSERT INTO orders(id,owner_hash,idempotency_key,plan,plan_name,price_cents,mode,status,created_at,updated_at,last_event_id,customer_email,partner_id,partner_name,cost_cents,purchase_note,upstream_partner_id,upstream_cost_cents,delivery_kind,procurement_kind) VALUES($1,$2,$3,$4,$5,$6,$14,'pending',$7,$7,$8,$9,$10,$11,$12,$13,$15,$16,$17,$18)`, id, access.OwnerHash, in.Key, in.Plan, name, price, now, event, email, partnerID, partnerName, cost, note, mode, upstreamID, upstreamCost, deliveryKind, supplier)
 	if e != nil {
 		return out, false, e
 	}

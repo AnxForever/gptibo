@@ -16,4 +16,5 @@
 
 - 真实供应商标识、真实支付主机、部署节点路径、渠道开关现状，集中在**本机私有清单 `SUPPLIERS.local.md`**（已由 `.gitignore` 排除，绝不提交）。开头「〇、渠道总览」一表列全所有渠道及其状态。
 - 多渠道横向对比与选型结论在 **`CHANNEL-MATRIX.local.md`**（同样 gitignored）；两份互为索引，新建渠道要同时更新，并同步到 `korea-seoul:/opt/anx/channels/`。
+- 「已发现但不修 / 已接受风险 / 外部阻塞」集中在 **`KNOWN-ISSUES.local.md`**（gitignored）；每条带重新评估条件，修复后删除并记账。
 - 不要因为"源码里搜不到真实域名"就判定渠道缺失，也不要往仓库里补真实标识；新增代码必须维持匿名化边界（见 [CLAUDE.md](CLAUDE.md) 的「仓库性质」）。

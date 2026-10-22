@@ -14,6 +14,8 @@ dist-ssr
 .dev.vars
 .admin-auth/
 .xgift-private/
+# Local agent tooling (per-machine MCP servers, never shared)
+.mcp.json
 __pycache__/
 .env
 .env.*

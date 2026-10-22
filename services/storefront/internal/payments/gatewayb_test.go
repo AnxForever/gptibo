@@ -26,6 +26,43 @@ func zResponse(v any) *http.Response {
 	b, _ := json.Marshal(v)
 	return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(string(b)))}
 }
+func TestGATEWAYBBaseOverrideOmitsEmptyChannel(t *testing.T) {
+	key := strings.Repeat("test", 8)
+	z, e := NewGATEWAYB(GATEWAYBConfig{PID: "1001", Key: key, Type: "alipay", Base: "https://api.example.test/gw/"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if z.Account() != "1001:https://api.example.test/gw" {
+		t.Fatalf("account did not follow the configured base: %s", z.Account())
+	}
+	o := Order{ID: "YMX-BASE", Subject: "会员", Amount: 100}
+	z.client.Transport = snTransport(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Host != "api.example.test" || !strings.HasPrefix(req.URL.Path, "/gw/") {
+			t.Fatalf("unexpected destination %s", req.URL.Host+req.URL.Path)
+		}
+		if req.Method == http.MethodGet {
+			return zResponse(map[string]any{"code": 1, "pid": 1001, "type": "alipay", "money": "1.00", "out_trade_no": gatewaybOrderID(o.ID), "trade_no": "TRADE-1", "status": 1}), nil
+		}
+		if e := req.ParseMultipartForm(65536); e != nil {
+			t.Fatal(e)
+		}
+		if _, ok := req.PostForm["cid"]; ok {
+			t.Fatal("empty optional channel must not be sent")
+		}
+		if req.PostForm.Get("param") != o.ID || req.PostForm.Get("type") != "alipay" {
+			t.Fatal("required create fields missing")
+		}
+		return zResponse(map[string]any{"code": 1, "trade_no": "TRADE-1", "qrcode": "https://cashier.example.test/qr"}), nil
+	})
+	if _, e := z.Create(WithClientIP(context.Background(), "203.0.113.4"), o, "https://shop.test/notify"); e != nil {
+		t.Fatal(e)
+	}
+	for _, base := range []string{"http://api.example.test", "https://user:pass@api.example.test", "https://api.example.test?x=1", "https://api.example.test/#frag"} {
+		if _, e := NewGATEWAYB(GATEWAYBConfig{PID: "1001", Key: key, Type: "alipay", Base: base}); e == nil {
+			t.Fatalf("accepted invalid base %q", base)
+		}
+	}
+}
 func TestGATEWAYBCreateQueryAndRefundProtocol(t *testing.T) {
 	for _, kind := range []string{"alipay", "wxpay"} {
 		t.Run(kind, func(t *testing.T) {

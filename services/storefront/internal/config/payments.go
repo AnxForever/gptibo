@@ -80,12 +80,16 @@ func LoadPayments() (payments.Service, error) {
 		if e != nil {
 			return s, e
 		}
+		base := os.Getenv("GATEWAYB_API_BASE")
+		if base == "" {
+			return s, errors.New("GATEWAYB_API_BASE is required when GATEWAYB_ENABLED is true")
+		}
 		for _, kind := range []string{"alipay", "wxpay"} {
 			channel := os.Getenv("GATEWAYB_ALIPAY_CID")
 			if kind == "wxpay" {
 				channel = os.Getenv("GATEWAYB_WXPAY_CID")
 			}
-			p, e := payments.NewGATEWAYB(payments.GATEWAYBConfig{PID: os.Getenv("GATEWAYB_PID"), Key: key, Type: kind, ChannelID: channel})
+			p, e := payments.NewGATEWAYB(payments.GATEWAYBConfig{PID: os.Getenv("GATEWAYB_PID"), Key: key, Type: kind, ChannelID: channel, Base: base})
 			if e != nil {
 				return s, e
 			}

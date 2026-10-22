@@ -20,7 +20,8 @@ import (
 )
 
 // https://gateway-b.example.invalid/member/doc.html . Credentials never enter errors/logs.
-type GATEWAYBConfig struct{ PID, Key, Type, ChannelID string }
+// Base is the merchant gateway root; keep the real host in deployment config only.
+type GATEWAYBConfig struct{ PID, Key, Type, ChannelID, Base string }
 type GATEWAYB struct {
 	config GATEWAYBConfig
 	client *http.Client
@@ -30,10 +31,25 @@ func NewGATEWAYB(c GATEWAYBConfig) (*GATEWAYB, error) {
 	if !regexp.MustCompile(`^[1-9][0-9]{0,19}$`).MatchString(c.PID) || len(c.Key) < 16 || len(c.Key) > 256 || strings.TrimSpace(c.Key) != c.Key || (c.Type != "alipay" && c.Type != "wxpay") || (c.ChannelID != "" && !regexp.MustCompile(`^[0-9]+(,[0-9]+)*$`).MatchString(c.ChannelID)) {
 		return nil, errors.New("invalid GATEWAYB merchant configuration")
 	}
+	base, e := gatewaybBase(c.Base)
+	if e != nil {
+		return nil, e
+	}
+	c.Base = base
 	return &GATEWAYB{c, &http.Client{Timeout: 8 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
 }
+func gatewaybBase(raw string) (string, error) {
+	if raw == "" {
+		return "https://gateway-b.example.invalid", nil
+	}
+	u, e := url.Parse(raw)
+	if e != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+		return "", errors.New("invalid GATEWAYB API base")
+	}
+	return strings.TrimRight(raw, "/"), nil
+}
 func (z *GATEWAYB) ID() string      { return "gatewayb-" + z.config.Type }
-func (z *GATEWAYB) Account() string { return z.config.PID + ":https://gateway-b.example.invalid" }
+func (z *GATEWAYB) Account() string { return z.config.PID + ":" + z.config.Base }
 
 // Internal retail/invoice IDs exceed the gateway's 32-character limit. The
 // signed param echoes the original ID; both identifiers must agree on callback.
@@ -49,15 +65,20 @@ func (z *GATEWAYB) call(ctx context.Context, path string, v map[string]string, g
 	var body bytes.Buffer
 	form := url.Values{}
 	for k, s := range v {
-		form.Set(k, s)
+		if s != "" {
+			form.Set(k, s)
+		}
 	}
-	target, method, contentType := "https://gateway-b.example.invalid"+path, http.MethodGet, ""
+	target, method, contentType := z.config.Base+path, http.MethodGet, ""
 	if get {
 		target += "?" + form.Encode()
 	} else {
 		method = http.MethodPost
 		w := multipart.NewWriter(&body)
 		for k, s := range v {
+			if s == "" {
+				continue
+			}
 			if err := w.WriteField(k, s); err != nil {
 				return nil, errors.New("GATEWAYB request encoding failed")
 			}

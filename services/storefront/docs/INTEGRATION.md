@@ -195,6 +195,17 @@ SESSION_PRECHECK_ENABLED=                 # 下单前会话预检（如果你上
 TELEGRAM_ENABLED=                         # 订单通知到 Telegram
 ```
 
+`GATEWAYB` 就是**易支付 v1 / MD5 单签**协议（ZPay 等聚合支付都按这套）：`/mapi.php` 下单、`/api.php?act=order` 查单、`/api.php?act=refund` 退款、GET 回调验签。需要三个值：
+
+```ini
+GATEWAYB_ENABLED=true
+GATEWAYB_API_BASE=https://网关根地址      # 只写到域名，不带尾部斜杠；真实值只放节点
+GATEWAYB_PID=商户ID
+GATEWAYB_KEY_FILE=/run/integrations/gatewayb-key
+```
+
+`cid` 不填就用商户默认渠道；回调地址由 `PAYMENT_NOTIFY_ORIGIN` + `/api/payments/notify/gatewayb-{alipay|wxpay}` 拼出，必须是公网 https。渠道开通后还要在后台把 `payment_settings` 的 `enabled_providers` 打开，否则收银台不显示。
+
 ---
 
 ## 五、接入顺序（建议）

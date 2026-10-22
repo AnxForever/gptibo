@@ -52,7 +52,7 @@ func TestPaymentProvidersRequireKeysAndKeepOfficialDefault(t *testing.T) {
 
 func TestGATEWAYBConfigurationIsOptInAndLoadsBothMethods(t *testing.T) {
 	t.Setenv("MIGRATION_REHEARSAL", "false")
-	for _, name := range []string{"ALIPAY_ENABLED", "GATEWAYA_ENABLED", "PAYMENT_CHECKOUT_ENABLED", "GATEWAYB_ENABLED", "GATEWAYB_PID", "GATEWAYB_KEY", "GATEWAYB_KEY_FILE", "GATEWAYB_ALIPAY_CID", "GATEWAYB_WXPAY_CID"} {
+	for _, name := range []string{"ALIPAY_ENABLED", "GATEWAYA_ENABLED", "PAYMENT_CHECKOUT_ENABLED", "GATEWAYB_ENABLED", "GATEWAYB_PID", "GATEWAYB_KEY", "GATEWAYB_KEY_FILE", "GATEWAYB_API_BASE", "GATEWAYB_ALIPAY_CID", "GATEWAYB_WXPAY_CID"} {
 		t.Setenv(name, "")
 	}
 	s, e := LoadPayments()
@@ -65,6 +65,10 @@ func TestGATEWAYBConfigurationIsOptInAndLoadsBothMethods(t *testing.T) {
 	}
 	t.Setenv("GATEWAYB_PID", "1234")
 	t.Setenv("GATEWAYB_KEY", strings.Repeat("test", 8))
+	if _, e = LoadPayments(); e == nil {
+		t.Fatal("enabled without a gateway base")
+	}
+	t.Setenv("GATEWAYB_API_BASE", "https://api.example.test")
 	t.Setenv("PAYMENT_CHECKOUT_ENABLED", "true")
 	s, e = LoadPayments()
 	if e != nil || s.Lookup("gatewayb-alipay") == nil || s.Lookup("gatewayb-wxpay") == nil || len(s.Providers) != 2 || s.Provider.ID() != "gatewayb-alipay" {

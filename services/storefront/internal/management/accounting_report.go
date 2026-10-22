@@ -22,10 +22,10 @@ func (s Service) AccountingReport(ctx context.Context, page int, status string, 
  CASE WHEN o.payment_status='paid' AND o.status='success' THEN 1 ELSE 0 END completed,
  CASE WHEN o.payment_status='paid' THEN o.price_cents ELSE 0 END paid_cents,
  CASE WHEN o.payment_status='paid' THEN greatest(o.refunded_cents,COALESCE(t.refunded_cents,0)) ELSE 0 END refund_cents,
- CASE WHEN o.payment_status='paid' AND o.status='success' THEN COALESCE(i.cost_cents,CASE WHEN o.plan='gmail-account' THEN k.actual_cost_cents WHEN n.order_id IS NOT NULL THEN n.actual_cost_cents ELSE c.cost_cents END) ELSE 0 END cost_cents,
+ CASE WHEN o.payment_status='paid' AND o.status='success' THEN COALESCE(i.cost_cents,k.actual_cost_cents,n.actual_cost_cents,b.actual_cost_cents,c.cost_cents) ELSE 0 END cost_cents,
  CASE WHEN o.payment_status<>'paid' OR o.status<>'success' OR o.partner_id IS NULL THEN 0 WHEN o.cost_cents IS NULL OR (t.order_id IS NOT NULL AND t.merchant_margin_cents IS NULL) THEN NULL ELSE ` + ("(" + finance.Profit("o") + "+COALESCE(partner_order_profit(o.id,o.upstream_partner_id),0))") + ` END commission_cents,
  greatest(o.refund_hold,COALESCE(t.financial_hold,0)) held
- FROM orders o LEFT JOIN recharge_orders t ON t.order_id=o.id LEFT JOIN account_supplier_orders k ON k.order_id=o.id LEFT JOIN delivery_supplier_orders n ON n.order_id=o.id LEFT JOIN accounting_items i ON i.order_id=o.id AND i.kind='order' LEFT JOIN accounting_costs c ON c.plan=o.plan
+ FROM orders o LEFT JOIN recharge_orders t ON t.order_id=o.id LEFT JOIN account_supplier_orders k ON k.order_id=o.id LEFT JOIN delivery_supplier_orders n ON n.order_id=o.id LEFT JOIN canboso_orders b ON b.order_id=o.id LEFT JOIN accounting_items i ON i.order_id=o.id AND i.kind='order' LEFT JOIN accounting_costs c ON c.plan=o.plan
  WHERE o.mode='live' AND o.is_test=0 AND ($1::bigint IS NULL OR o.created_at>=$1) AND ($2::bigint IS NULL OR o.created_at<$2) AND ($3='all' OR ($3='refunded' AND greatest(o.refunded_cents,COALESCE(t.refunded_cents,0))>0) OR o.status=$3)`
 	base := `WITH report AS (SELECT q.*,CASE WHEN completed=0 THEN 0 WHEN held=1 THEN NULL ELSE paid_cents-refund_cents-cost_cents-commission_cents END profit_cents FROM (` + source + `) q) `
 	tx, e := s.Store.DB.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})

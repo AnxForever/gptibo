@@ -332,6 +332,7 @@ func Run(ctx context.Context, s *store.Store, path, expected string, apply bool)
 		"pending_invoice_payments": "SELECT count(*) FROM invoice_payments WHERE state='pending'",
 		"uncertain_delivery_supplier":        "SELECT count(*) FROM delivery_supplier_orders WHERE state IN ('creating','unknown','pending')",
 		"uncertain_gmail":          "SELECT count(*) FROM account_supplier_orders WHERE state IN ('creating','unknown')",
+		"uncertain_canboso":        "SELECT count(*) FROM canboso_orders WHERE state IN ('creating','unknown','pending')",
 		"uncertain_xgift":          "SELECT count(*) FROM xgift_purchases WHERE state IN ('creating','unknown','pending')",
 		"refund_holds":             "SELECT count(*) FROM orders WHERE refund_hold=1",
 	} {

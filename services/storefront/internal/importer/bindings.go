@@ -29,6 +29,9 @@ func CheckBindings(ctx context.Context, s *store.Store, pay payments.Service, tb
 		{"payment_accounts", `SELECT provider,account FROM payments UNION ALL SELECT provider,account FROM invoice_payments`, func(v []string) bool { _, e := pay.Resolve(v[0], v[1]); return e == nil }},
 		{"recharge_accounts", `SELECT account FROM recharge_orders`, func(v []string) bool { return tb != nil && tb.Client != nil && v[0] == tb.Client.Account() }},
 		{"delivery_supplier_credentials", `SELECT credential_hash FROM delivery_supplier_orders`, func(v []string) bool { return pc != nil && pc.DeliverySupplier != nil && v[0] == security.Hash(pc.DeliverySupplier.Key) }},
+		{"canboso_credentials", `SELECT credential_hash FROM canboso_orders`, func(v []string) bool {
+			return pc != nil && pc.Canboso != nil && v[0] == security.Hash(pc.Canboso.Key)
+		}},
 		{"gmail_accounts", `SELECT api_base,app_id FROM account_supplier_orders`, func(v []string) bool {
 			return pc != nil && pc.AccountSupplier != nil && v[0] == pc.AccountSupplier.Base && v[1] == pc.AccountSupplier.App
 		}},

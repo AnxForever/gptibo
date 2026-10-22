@@ -112,3 +112,32 @@ func TestCanbosoValueRejectsInjectedCredentials(t *testing.T) {
 		t.Fatal("empty user accepted")
 	}
 }
+
+func TestKindPrecedence(t *testing.T) {
+	s := &Service{}
+	if got := s.kind("plus"); got != "" {
+		t.Fatal("plus owned without a channel", got)
+	}
+	if got := s.kind("gmail-account"); got != "gmail" {
+		t.Fatal("legacy gmail mapping lost", got)
+	}
+	if got := s.kind("duolingo-12m"); got != "delivery_supplier" {
+		t.Fatal("delivery supplier mapping lost", got)
+	}
+	if s.Supports("plus") {
+		t.Fatal("plus supported without a channel")
+	}
+	s.Canboso = &CanbosoSupplier{Key: testCanbosoKey}
+	if got := s.kind("plus"); got != "canboso" {
+		t.Fatal("canboso did not claim plus", got)
+	}
+	if got := s.kind("gmail-account"); got != "canboso" {
+		t.Fatal("canboso did not take precedence for gmail-account", got)
+	}
+	if got := s.kind("duolingo-12m"); got != "delivery_supplier" {
+		t.Fatal("canboso captured an unmapped plan", got)
+	}
+	if !s.Supports("plus") || s.Supports("pro-5x") {
+		t.Fatal("Supports disagrees with kind")
+	}
+}

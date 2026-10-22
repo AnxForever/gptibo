@@ -66,13 +66,19 @@ export function ProductCatalog({ onHelp, onOrders, onNavigate, offers, catalogRe
     { id: 'codex-sms', compact: true, node: sms && <a className="store-compact" href={storefrontHref('product/codex-sms')} onClick={e => navigate(e, 'product/codex-sms')}><ProductMark small productId="codex-sms" /><span><strong>{t('Codex 接码')}</strong><small>{t(offers.some(o => o.product_id === 'codex-sms' && o.enabled) ? '按次服务' : '暂停售卖')}</small></span><ChevronRight size={16} /></a> },
   ]
   const groups: typeof cards[] = []
-  for (const id of normalizeProductOrder(productOrder)) {
+  const ordered = normalizeProductOrder(productOrder)
+  for (const id of ordered) {
     const card = cards.find(item => item.id === id)
     if (!card?.node || hiddenProductIds.includes(id)) continue
     const last = groups.at(-1)
     if (last && Boolean(last[0].compact) === Boolean(card.compact)) last.push(card)
     else groups.push([card])
   }
+  // Plans the server does not know about yet (new supply families) still get a
+  // card instead of being silently dropped by the saved order list.
+  const placed = new Set(groups.flat().map(item => item.id))
+  const extra = cards.filter(item => item.node && !placed.has(item.id) && !hiddenProductIds.includes(item.id))
+  if (extra.length > 0) groups.push(extra)
   const visibleCards = groups.flat()
   return <section id="catalog-products" className="store-home page-width" aria-label={t('商品目录')}>
     <aside className="store-sidebar" aria-label={t('商品分类')}>

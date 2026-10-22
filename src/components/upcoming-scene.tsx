@@ -7,7 +7,8 @@ import type { CSSProperties } from 'react'
  * Muse ships a coloured logo; the rest are monochrome masks tinted per brand.
  */
 const BRANDS: Record<string, { color: string; dark?: string; glow?: string; image?: boolean }> = {
-  muse: { color: '#2f6bff', image: true },
+  // Halo uses the middle stop of the logo's own gradient (#0082FB → #0040DC).
+  muse: { color: '#0064e0', image: true },
   // Black marks need a neutral halo: tinting the glow with #0f0f0f leaves a
   // smudge behind the glyph instead of light.
   cursor: { color: '#0f0f0f', dark: '#f2f2f2', glow: '#7c8290' },

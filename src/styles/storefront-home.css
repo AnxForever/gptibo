@@ -77,10 +77,10 @@
 }
 .store-product:focus-within .store-mail-art { transform:translateY(-3px) scale(1.05); }
 .brand-art { position:relative; height:185px; margin-top:6px; display:grid; place-items:center; isolation:isolate; }
-.brand-art-glow { position:absolute; width:158px; height:158px; border-radius:50%; background:radial-gradient(circle at 50% 46%,color-mix(in oklab,var(--brand) 15%,transparent),transparent 70%); }
+.brand-art-glow { position:absolute; width:160px; height:160px; border-radius:50%; background:radial-gradient(circle at 50% 46%,color-mix(in oklab,var(--brand-glow) 13%,transparent),transparent 70%); }
 .brand-art-logo { position:relative; z-index:1; display:block; width:84px; height:84px; background:var(--brand); mask-size:contain; mask-position:center; mask-repeat:no-repeat; animation:brand-float 6.5s ease-in-out infinite; }
 img.brand-art-logo { background:none; mask:none; object-fit:contain; }
-.brand-art-floor { position:absolute; bottom:33px; width:92px; height:11px; border-radius:50%; background:color-mix(in oklab,var(--brand) 26%,transparent); filter:blur(7px); }
+.brand-art-floor { position:absolute; bottom:34px; width:86px; height:10px; border-radius:50%; background:radial-gradient(ellipse,#0f172a1f,transparent 72%); filter:blur(6px); }
 .dark .brand-art-logo { background:var(--brand-dark); }
 @keyframes brand-float {
   0%,100% { transform:translateY(0); }

@@ -17,6 +17,15 @@ const BRANDS: Record<string, { color: string; dark?: string; glow?: string; imag
   notion: { color: '#0f0f0f', dark: '#f2f2f2', glow: '#7c8290' },
 }
 
+/** Hover border tint, kept in sync with each mark so the card edge picks up the brand. */
+export const BRAND_ACCENT: Record<string, string> = {
+  muse: '#88a5e8',
+  cursor: '#c9ced8',
+  perplexity: '#9adfe9',
+  canva: '#8ee0e7',
+  notion: '#c9ced8',
+}
+
 export function UpcomingScene({ productId }: { productId: string }) {
   const brand = BRANDS[productId]
   if (!brand) return null

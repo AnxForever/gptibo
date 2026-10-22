@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"strings"
+
 	"github.com/gin-gonic/gin"
 
 	"gptibo/storefront/internal/fault"
@@ -42,6 +44,12 @@ func registerOrders(group, admin *gin.RouterGroup, s orders.Service, token func(
 			return
 		}
 		in.Partner = storePartner(c, in.Partner)
+		// A coupon limited to one use per email is only honoured when the buyer
+		// holds a session for that exact address; an address typed at checkout is
+		// unverified and would let the same code be reused with a new one.
+		if p, e := s.Auth.Require(c.Request.Context(), s.Store.DB, "customer", token(c, "customer")); e == nil && strings.EqualFold(p.Subject, in.Email) {
+			in.Verified = true
+		}
 		out, e := s.QuoteCoupon(c.Request.Context(), in)
 		reply(c, out, e)
 	})

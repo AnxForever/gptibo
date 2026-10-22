@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var callbackPath = regexp.MustCompile(`^/api/(payments|invoices|domain-billing)/notify/[a-z0-9_-]+$`)
+var callbackPath = regexp.MustCompile(`(?i)^/api/(payments|invoices|domain-billing)/notify/[a-z0-9_-]+/?$`)
 
 func isCallback(path string) bool {
 	return callbackPath.MatchString(path) || path == "/api/recharge/webhook" || path == "/api/telegram/webhook"

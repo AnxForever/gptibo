@@ -139,6 +139,11 @@ func (s *Service) quote(ctx context.Context, plan string, sale int64, cost *int6
 	if !s.Enabled(plan) {
 		return Goods{}, fault.New(409, "自动发货暂未开放。")
 	}
+	// This runs inside the order-creation transaction, holding advisory locks and
+	// row shares. A slow supplier must not hold them for the supplier client's own
+	// timeout, so the upstream leg is capped well below that.
+	ctx, cancel := context.WithTimeout(ctx, 6*time.Second)
+	defer cancel()
 	ceiling := s.MaxCents
 	switch s.kind(plan) {
 	case "delivery_supplier":

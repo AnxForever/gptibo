@@ -327,7 +327,10 @@ func (s Service) Create(ctx context.Context, access Access, in CreateInput) (Ord
 		if partnerID == nil || storeID == nil || cost == nil {
 			return out, false, fault.New(400, "优惠码仅适用于指定代理商店。")
 		}
-		id, d, err := couponPrice(ctx, tx, *partnerID, *storeID, in.Plan, email, in.CouponCode, price, *cost)
+		// The checkout form lets the buyer type any address; only a customer
+		// session for that exact address counts as proof for once-per-email codes.
+		verified := access.Email != "" && strings.EqualFold(access.Email, email)
+		id, d, err := couponPrice(ctx, tx, *partnerID, *storeID, in.Plan, email, in.CouponCode, price, *cost, verified)
 		if err != nil {
 			return out, false, err
 		}

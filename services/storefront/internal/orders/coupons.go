@@ -13,6 +13,9 @@ type CouponQuoteInput struct {
 	Plan    string `json:"plan"`
 	Email   string `json:"email"`
 	Code    string `json:"code"`
+	// Verified is set by the HTTP layer only when the caller holds a customer
+	// session for this exact address; it is never read from the request body.
+	Verified bool `json:"-"`
 }
 type CouponQuote struct {
 	Code      string `json:"code"`
@@ -28,7 +31,7 @@ const couponRejected = "优惠码无效或当前不可用。"
 
 // The coupon row lock serializes reservations across all targeted shops and emails.
 // Orders remain reserved until the payment channel has confirmed closure. A timeout alone never releases a use.
-func couponPrice(ctx context.Context, tx pgx.Tx, partner, shop, plan, email, code string, price, cost int64) (string, int64, error) {
+func couponPrice(ctx context.Context, tx pgx.Tx, partner, shop, plan, email, code string, price, cost int64, verified bool) (string, int64, error) {
 	var id string
 	var discount int64
 	var limit int
@@ -40,6 +43,12 @@ func couponPrice(ctx context.Context, tx pgx.Tx, partner, shop, plan, email, cod
 	}
 	if e != nil {
 		return "", 0, e
+	}
+	// "Once per email" is only meaningful when the address has been proven by a
+	// customer session: the checkout form lets a buyer type any address, so an
+	// unverified email could simply be changed to reuse the code.
+	if once && !verified {
+		return "", 0, fault.New(400, couponRejected)
 	}
 	if price-discount < cost || price-discount < 1 {
 		return "", 0, fault.New(400, couponRejected)
@@ -83,7 +92,7 @@ func (s Service) QuoteCoupon(ctx context.Context, in CouponQuoteInput) (CouponQu
 	if e != nil {
 		return out, e
 	}
-	_, discount, e := couponPrice(ctx, tx, partner, shop, in.Plan, email, in.Code, price, cost)
+	_, discount, e := couponPrice(ctx, tx, partner, shop, in.Plan, email, in.Code, price, cost, in.Verified)
 	if e != nil {
 		return out, e
 	}

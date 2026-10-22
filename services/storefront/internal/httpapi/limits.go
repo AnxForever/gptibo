@@ -18,7 +18,8 @@ func apiLimit(a *auth.Service) gin.HandlerFunc {
 		}
 		source := security.Hash(c.ClientIP())
 		bucket := "api:"
-		if path == "/api/telegram/webhook" || path == "/api/recharge/webhook" || strings.HasPrefix(path, "/api/invoices/notify/") || strings.HasPrefix(path, "/api/payments/notify/") || strings.HasPrefix(path, "/api/domain-billing/notify/") {
+		lower := strings.ToLower(path)
+		if lower == "/api/telegram/webhook" || lower == "/api/recharge/webhook" || strings.HasPrefix(lower, "/api/invoices/notify/") || strings.HasPrefix(lower, "/api/payments/notify/") || strings.HasPrefix(lower, "/api/domain-billing/notify/") {
 			bucket = "callback:"
 		}
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Second)

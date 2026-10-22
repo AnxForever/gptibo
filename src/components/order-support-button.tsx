@@ -181,7 +181,7 @@ export function OrderSupportButton({
                 <Info size={15} className="order-support-empty-icon" />
                 <p>
                   {contacts
-                    ? '该商店暂未提供联系方式，可在原订单查看进度或联系商店客服。'
+                    ? '该商店暂未提供联系方式，可在原订单查看进度或申请售后。'
                     : '正在读取本订单的联系方式…'}
                 </p>
               </div>

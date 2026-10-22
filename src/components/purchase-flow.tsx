@@ -1,12 +1,12 @@
 import type { PaymentMethodOption } from './payment-method-choices'
 import { emailProduct, productNameForId } from '../../shared/email-products'
-import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Check, ShieldCheck, X } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { CopyButton } from './copy-button'
 import { Checkout, type CheckoutProps } from './checkout'
-import { PurchaseEmail } from './order-services'
+import { AfterSales, PurchaseEmail, RefundContent } from './order-services'
 import { ProductMark } from './brand'
 import { PurchaseNotice } from './purchase-notice'
 import { OrderSupportButton } from './order-support-button'
@@ -32,7 +32,8 @@ function FlowStage({ stage, children }: { stage: string; children: ReactNode }) 
     previous.current = stage
     const popup = content.current?.closest<HTMLElement>('.flow-main')
     if (popup) popup.scrollTop = 0
-    content.current?.querySelector<HTMLElement>('[data-stage-title]')?.focus({ preventScroll: true })
+    // A background order update must not steal focus from the after-sales form.
+    if (!content.current?.closest('[data-sales-open="true"]')) content.current?.querySelector<HTMLElement>('[data-stage-title]')?.focus({ preventScroll: true })
     const preference = matchMedia('(prefers-reduced-motion: reduce)')
     if (preference.matches) return
     const animation = content.current?.animate([
@@ -69,6 +70,41 @@ export function PurchaseFlow({ couponAvailable = false, shopSlug, notice, onClos
     }
     previousNotice.current = showingNotice
   }, [showingNotice, open])
+  const salesTitleRef = useRef<HTMLHeadingElement>(null)
+  const salesTrigger = useRef<HTMLButtonElement | null>(null)
+  const [salesHeight, setSalesHeight] = useState<{ orderId: string; height: number } | null>(null)
+  const [salesOrder, setSalesOrder] = useState<string | null>(null)
+  const [salesOpen, setSalesOpen] = useState(false)
+  const [salesBusy, setSalesBusy] = useState(false)
+  const [compact, setCompact] = useState(() => matchMedia('(max-width: 959px)').matches)
+  const showingSales = salesOpen && salesOrder === order?.id && !emailMode
+  useEffect(() => {
+    const media = matchMedia('(max-width: 959px)')
+    const update = () => setCompact(media.matches)
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+  useEffect(() => {
+    if (!showingSales) return
+    const frame = requestAnimationFrame(() => salesTitleRef.current?.focus({ preventScroll: true }))
+    return () => cancelAnimationFrame(frame)
+  }, [showingSales])
+  function openSales(trigger: HTMLButtonElement) {
+    if (!order || busy) return
+    // Preserve the visible order height through submission and returning from after-sales.
+    // offsetHeight excludes the popup's opening scale; max-height still fits the viewport.
+    if (popupRef.current && salesHeight?.orderId !== order.id) {
+      setSalesHeight({ orderId: order.id, height: popupRef.current.offsetHeight })
+    }
+    salesTrigger.current = trigger
+    setSalesOrder(order.id); setSalesOpen(true)
+  }
+  function closeSales() {
+    if (salesBusy) return
+    setSalesOpen(false)
+    // Wait for React to remove inert from the order pane before restoring focus.
+    requestAnimationFrame(() => salesTrigger.current?.focus({ preventScroll: true }))
+  }
   const current = emailMode || !order ? draft : order
   const plan = ORDER_PLANS.find(p => p.id === current.plan)!
   const emailProductInfo = emailProduct(current.plan)
@@ -85,16 +121,16 @@ export function PurchaseFlow({ couponAvailable = false, shopSlug, notice, onClos
   const result = !emailMode && (archived || !reconnect && ['processing', 'success', 'failed', 'cancelled'].includes(order?.status ?? '') || (sms && step === 2))
   const title = emailMode ? xgift ? '为哪个账号开通？' : '填写下单邮箱' : archived ? '订单已归档' : paused ? orderLabel(order!) : result ? orderLabel(order!) : step === 1 ? '确认本次付款' : step === 2 ? xgift ? '等待充值' : automaticDelivery ? '等待自动发货' : emailProductInfo ? '等待邮件发货' : manual ? '等待人工开通' : '连接你的账号' : '查询接码结果'
   const stage = emailMode ? 'email' : `${order?.id}-${order?.status}-${Boolean(order?.smsPhone)}-${Boolean(paused)}`
-  const close = (value: boolean) => { if (busy) return; onOpenChange(value) }
-  return <OrderSupportGuideContext.Provider value={showSupportGuide}><Dialog open={open} disablePointerDismissal onOpenChange={close} onOpenChangeComplete={value => { if (!value) { setDismissedSupportReason(null); onCloseComplete?.() } }}>
-    <DialogContent ref={popupRef} className={showingNotice ? 'motion-dialog purchase-notice' : `motion-dialog purchase-flow${xgift ? ' x-purchase-flow' : ''}`} showCloseButton={showingNotice} initialFocus={titleRef}>
+  const close = (value: boolean) => { if (busy || salesBusy) return; if (!value && showingSales) closeSales(); else onOpenChange(value) }
+  return <OrderSupportGuideContext.Provider value={showSupportGuide}><Dialog open={open} disablePointerDismissal onOpenChange={close} onOpenChangeComplete={value => { if (!value) { setSalesOpen(false); setSalesOrder(null); setSalesHeight(null); setDismissedSupportReason(null); onCloseComplete?.() } }}>
+    <DialogContent ref={popupRef} style={{ height: !emailMode && salesHeight?.orderId === order?.id ? salesHeight?.height : undefined }} className={showingNotice ? 'motion-dialog purchase-notice' : `motion-dialog purchase-flow${xgift ? ' x-purchase-flow' : ''}`} data-sales-open={showingSales} showCloseButton={showingNotice} initialFocus={titleRef}>
       {notice ? <PurchaseNotice plan={draft.plan} purchaseNote={notice.purchaseNote} supportsWarranty={notice.supportsWarranty} titleRef={titleRef} onCancel={() => close(false)} onContinue={notice.onContinue} /> : <>
       <header className="flow-ticket">
         <div className="flow-ticket-meta"><span className="flow-ticket-label">{emailMode && xgift ? '确认订单' : '订单编号'}</span>{!emailMode && order ? <span className="flow-order-id" title={order.id}>{order.id}</span> : !(emailMode && xgift) && <span className="flow-ticket-draft">待生成</span>}</div>
-        <div className="flow-ticket-actions">{!emailMode && order && <CopyButton key={order.id} iconOnly variant="ghost" value={order.id} label="复制订单号" />}<Button className="flow-close" variant="ghost" size="icon-sm" aria-label="关闭下单窗口" disabled={busy} onClick={() => close(false)}><X size={17} /></Button></div>
+        <div className="flow-ticket-actions">{!emailMode && order && <CopyButton key={order.id} iconOnly variant="ghost" value={order.id} label="复制订单号" />}<Button className="flow-close" variant="ghost" size="icon-sm" aria-label={showingSales ? '收起售后，返回订单' : '关闭下单窗口'} disabled={busy || salesBusy} onClick={() => close(false)}><X size={17} /></Button></div>
       </header>
       <div className="flow-layout">
-      <div className="flow-main">
+      <div className="flow-main" inert={salesBusy || showingSales && compact} aria-hidden={showingSales && compact || undefined}>
       <header className="flow-header">
         <div className="flow-product"><ProductMark small productId={plan.productId} /><div className="flow-product-main"><strong>{productNameForId(plan.productId)}</strong><p>{!emailMode && order ? order.planName : plan.name}{!xgift && <> · {emailProductInfo ? emailProductInfo.duration + ' · 邮件发货' : sms ? '1 次服务' : plan.renewalOnly ? '按月续费' : '按月订阅'}</>}</p></div><div className="flow-product-meta"><strong className="flow-price"><small>¥</small>{(!emailMode && order?.paymentSummary ? order.paymentSummary.amountCents / 100 : current.price).toFixed(2)}</strong><span className="flow-product-qty">数量 × 1</span></div></div>
         <DialogDescription className="sr-only">{xgift ? '填写用户名与邮箱，验证账号后付款。' : current.plan === 'gmail-account' ? '填写收件邮箱并确认付款，账号资料自动邮件发货。' : emailProductInfo ? '填写收件邮箱并确认付款，自动发货后可在订单页与邮箱领取。' : sms ? '填写邮箱，确认付款后获取手机号，再查询接码结果。' : manual ? '填写邮箱并确认付款，联系支持人工开通后查看结果。' : '填写邮箱并确认付款，连接账号后查看开通结果。'}</DialogDescription>
@@ -102,17 +138,24 @@ export function PurchaseFlow({ couponAvailable = false, shopSlug, notice, onClos
       </header>
       <FlowStage stage={stage}>
         <DialogTitle ref={titleRef} tabIndex={-1} data-stage-title className={(xgift && !emailMode) || (result && !paused) || step === 1 ? 'sr-only' : 'flow-title'}>{title}</DialogTitle>
-        {emailMode ? <PurchaseEmail couponAvailable={couponAvailable} shopSlug={shopSlug} purchasePlan={current.plan} price={current.price} key={`${shopSlug}:${current.plan}:${couponAvailable}`} paymentMethods={!checkout.testingEnabled && (xgift || emailProductInfo) ? paymentMethods ?? [] : undefined} plan={xgift ? current.plan : undefined} initialEmail={initialEmail} busy={Boolean(busy)} error={error ?? ''} inputRef={emailRef} onSubmit={onSubmitEmail} /> : typeof children === 'function' ? children(refreshTarget) : children ?? <Checkout key={order?.id} {...checkout} refreshTarget={refreshTarget} refreshDisabled={Boolean(busy)} />}
+        {emailMode ? <PurchaseEmail couponAvailable={couponAvailable} shopSlug={shopSlug} purchasePlan={current.plan} price={current.price} key={`${shopSlug}:${current.plan}:${couponAvailable}`} paymentMethods={!checkout.testingEnabled && (xgift || emailProductInfo) ? paymentMethods ?? [] : undefined} plan={xgift ? current.plan : undefined} initialEmail={initialEmail} busy={Boolean(busy)} error={error ?? ''} inputRef={emailRef} onSubmit={onSubmitEmail} /> : typeof children === 'function' ? children(refreshTarget) : children ?? <Checkout key={order?.id} {...checkout} refreshTarget={refreshTarget} refreshDisabled={Boolean(busy) || salesBusy} />}
         <footer className="flow-footer" data-email-step={emailMode}>
           {emailMode ? <p><ShieldCheck size={14} />{xgift ? '仅用于订单通知与找回' : '用于商品交付、订单找回与服务联系，不订阅营销邮件。'}</p> : <>
-            <OrderSupportButton key={order?.id} contacts={order?.supportContacts} name={order?.partnerName ?? 'Anx'} disabled={busy || !order} guided={open && Boolean(supportReason) && supportReason !== dismissedSupportReason} onGuideDismiss={() => setDismissedSupportReason(supportReason)} />
+            <OrderSupportButton key={order?.id} contacts={order?.supportContacts} name={order?.partnerName ?? 'Anx'} disabled={busy || salesBusy || !order} guided={open && !showingSales && Boolean(supportReason) && supportReason !== dismissedSupportReason} onGuideDismiss={() => setDismissedSupportReason(supportReason)} />
             <div className="flow-footer-actions">
               <div ref={setRefreshTarget} className="flow-refresh-slot" />
+              {order && <AfterSales testingEnabled={checkout.testingEnabled} order={order} onOpen={openSales} disabled={busy || salesBusy} expanded={showingSales} />}
             </div>
           </>}
         </footer>
       </FlowStage>
       </div>
+      <aside id="purchase-refund-panel" className="flow-sales" inert={!showingSales} aria-hidden={!showingSales} aria-labelledby="purchase-refund-title" onTransitionEnd={event => { if (event.target === event.currentTarget && event.propertyName === 'opacity' && showingSales && !event.currentTarget.contains(document.activeElement)) salesTitleRef.current?.focus({ preventScroll: true }) }}>
+        <div className="flow-sales-shell">
+          <header className="flow-sales-header"><h2 id="purchase-refund-title" ref={salesTitleRef} tabIndex={-1}>订单售后</h2></header>
+          {salesOrder === order?.id && order && <RefundContent testingEnabled={checkout.testingEnabled} key={order.id} order={order} onUpdated={checkout.onUpdated} onBusyChange={setSalesBusy} onBack={closeSales} />}
+        </div>
+      </aside>
       </div>
       </>}
     </DialogContent>

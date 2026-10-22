@@ -32,20 +32,21 @@ const faq = [
   ['Pro 10× 可以新开吗？', '可以。Pro 10× 支持新开与续费，Pro 25× 也支持新开和自动充值。'],
   ['如何完成充值？', '选择套餐，填写下单邮箱并完成支付宝付款，再按订单指引连接账号。开通进度和结果可在「我的订单」查看。'],
   ['会更换我的 ChatGPT 账号吗？', '使用自己的账号开通或续费，无需购买共享账号。购买前请确认套餐适用范围。'],
-  ['Session 是什么？', 'Session 是账号登录凭据。仅在订单的账号连接步骤按指引提交，请勿写入订单备注或发送给其他人。'],
-  ['充值没有成功，该怎么办？', '先在「我的订单」查看进度，按提示处理；仍有问题请联系商店客服。请求超时不代表充值失败，请勿重复下单。'],
+  ['Session 是什么？', 'Session 是账号登录凭据。仅在订单的账号连接步骤按指引提交，请勿写入售后备注或发送给其他人。'],
+  ['充值没有成功，该怎么办？', '先在「我的订单」查看进度，按提示处理或申请售后。请求超时不代表充值失败，请勿重复下单。'],
   ['套餐价格是多少？', 'Plus ¥139／月，Pro 5× ¥699／月，Pro 10× ¥1400／月，Pro 25× ¥4500／月。下单以所选商店的套餐价格和订单确认金额为准。'],
 ]
 const smsFaq = [
   ['Codex 接码怎么购买？', '选择单次接码并完成付款，然后在订单中获取手机号、查询短信接收结果。平台售价为 ¥10／次，以订单确认金额为准。'],
   ['需要提交 Session 吗？', '不需要。接码与 ChatGPT 订阅是两种独立服务。'],
-  ['没收到验证码怎么办？', '在原订单查询进度，避免重复付款。仍未收到时请联系商店客服。'],
+  ['没收到验证码怎么办？', '在原订单查询进度，避免重复付款。仍未收到时可申请售后，退款金额以审核结果为准。'],
   ['在哪里查看手机号和结果？', '手机号与接收结果均在原订单中查看。换设备后，可通过下单邮箱验证找回订单。'],
 ]
 const generalFaq = [
   ['如何购买？', '选择服务，再进入详情页选择套餐。下单需填写可接收邮件的邮箱，服务开放情况以商品详情为准。'],
   ['目前有哪些商品？', 'ChatGPT 提供 Plus、Pro 5×、Pro 10×、Pro 25× 四档订阅，Gemini Pro 提供 18 个月会员，多邻国提供 1 年会员，两者通过邮件发货；Gmail 提供美国个人白号，付款后自动邮件发货；Codex 提供按次接码。Claude 与 Grok 待上架，可登记上线提醒。'],
   ['在哪里查看结果？', '通过「我的订单」查看进度或继续服务。订单保存在服务器，也可通过下单邮箱验证找回。'],
+  ['退款如何处理？', '在原订单申请售后，平台审核后安排退款。未交付或交付失败可申请全额退款，已完成订单按实际情况审核。'],
 ]
 function initialTheme() { try { return localStorage.getItem('ymx-theme') === 'dark' } catch { return false } }
 function App() {
@@ -185,7 +186,7 @@ function App() {
     <PurchaseFlow couponAvailable={store.catalog.find(item => item.id === purchaseDraft.plan)?.has_coupons === true} shopSlug={store.partner?.slug} notice={purchaseNoticeOpen ? { purchaseNote: purchaseDraft.purchaseNote, supportsWarranty: purchaseDraft.supportsWarranty, onContinue: () => { setAcceptedPlan(purchaseDraft.plan); setPurchaseNoticeOpen(false) } } : undefined} paymentMethods={store.paymentMethods} onOrderUpdated={store.acceptOrder} testingEnabled={store.testingEnabled} emailMode={emailOpen} draft={purchaseDraft} initialEmail={store.recoveryEmail} onSubmitEmail={create} pendingAction={store.pendingAction?.id === activeId ? store.pendingAction?.action : undefined} onUpdated={() => void store.refresh(true)} busy={store.busy} error={store.error} order={activeOrder} open={checkoutOpen} onOpenChange={changeCheckoutOpen} onCloseComplete={() => setPurchaseNoticeOpen(false)} onAction={onAction} onOrders={() => { changeCheckoutOpen(false); navigate('orders') }} />
     <SupportContactsDialog open={supportOpen} onOpenChange={setSupportOpen} contacts={store.supportContacts} name={brandName} error={store.error} onHelp={help} onRetry={() => void store.refresh(true)} />
     <StoreAnnouncement announcement={store.announcement} shop={partnerSlug} page={isDetail ? page : page === 'store' ? 'store' : 'orders'} blocked={store.shopUnavailable || purchaseNoticeOpen || checkoutOpen || recoveryOpen || helpOpen || supportOpen || noticeOpen} />
-    <Dialog open={noticeOpen} onOpenChange={setNoticeOpen}><DialogContent className="info-dialog motion-dialog"><DialogHeader><DialogTitle>{t('购买前，先了解。')}</DialogTitle><DialogDescription>{brandName} · {t('服务须知')}</DialogDescription></DialogHeader><ul className="notice-list"><li><Check />{t('选择所需服务，确认套餐、金额与适用范围。Pro 10× 支持新开与续费，Pro 25× 支持新开与自动充值。')}</li><li><ShieldCheck />{t('下单需填写可接收邮件的邮箱，付款与服务进度以订单记录为准。')}</li><li><Monitor />{t('订单可通过邮箱验证跨设备找回。遇到问题，请联系商店客服。')}</li></ul><Button onClick={() => setNoticeOpen(false)}>{t('了解了')}</Button></DialogContent></Dialog>
+    <Dialog open={noticeOpen} onOpenChange={setNoticeOpen}><DialogContent className="info-dialog motion-dialog"><DialogHeader><DialogTitle>{t('购买前，先了解。')}</DialogTitle><DialogDescription>{brandName} · {t('服务须知')}</DialogDescription></DialogHeader><ul className="notice-list"><li><Check />{t('选择所需服务，确认套餐、金额与适用范围。Pro 10× 支持新开与续费，Pro 25× 支持新开与自动充值。')}</li><li><ShieldCheck />{t('下单需填写可接收邮件的邮箱，付款与服务进度以订单记录为准。')}</li><li><Monitor />{t('订单可通过邮箱验证跨设备找回。遇到问题，请在原订单申请售后。')}</li></ul><Button onClick={() => setNoticeOpen(false)}>{t('了解了')}</Button></DialogContent></Dialog>
   </div>
 }
 export default App

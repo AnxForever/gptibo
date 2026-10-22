@@ -24,7 +24,6 @@ import (
 	"gptibo/storefront/internal/management"
 	"gptibo/storefront/internal/orders"
 	"gptibo/storefront/internal/payments"
-	"gptibo/storefront/internal/procurement"
 	"gptibo/storefront/internal/refunds"
 	"gptibo/storefront/internal/security"
 	"gptibo/storefront/internal/securityaudit"
@@ -523,13 +522,13 @@ func register(r *gin.Engine, s *store.Store, opts Options) {
 	if opts.Procurement != nil {
 		previousPlan, previousSnapshot := orderService.LivePlan, orderService.LiveSnapshot
 		orderService.LivePlan = func(plan string) bool {
-			if procurement.Kind(plan) != "" {
+			if opts.Procurement.Supports(plan) {
 				return opts.Procurement.Enabled(plan)
 			}
 			return previousPlan != nil && previousPlan(plan)
 		}
 		orderService.LiveSnapshot = func(ctx context.Context, tx pgx.Tx, o orders.Order, in orders.CreateInput) error {
-			if procurement.Kind(o.Plan) != "" {
+			if opts.Procurement.Supports(o.Plan) {
 				return opts.Procurement.Snapshot(ctx, tx, o, in)
 			}
 			if previousSnapshot == nil {

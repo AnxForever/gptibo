@@ -51,6 +51,7 @@ func (s Service) Views(ctx context.Context, q Query, list []Order, admin bool) (
 		{`SELECT order_id,username,state,receipt,failure_code "failureCode" FROM xgift_purchases WHERE order_id=ANY($1::text[])`, func(v *viewRelations, r map[string]any) { v.gift = append(v.gift, r) }},
 		{`SELECT order_id,status,sent_at,value,instructions FROM email_deliveries WHERE order_id=ANY($1::text[])`, func(v *viewRelations, r map[string]any) { v.delivery = append(v.delivery, r) }},
 		{`SELECT order_id,state FROM delivery_supplier_orders WHERE order_id=ANY($1::text[])`, func(v *viewRelations, r map[string]any) { v.purchase = append(v.purchase, r) }},
+		{`SELECT order_id,state FROM canboso_orders WHERE order_id=ANY($1::text[])`, func(v *viewRelations, r map[string]any) { v.purchase = append(v.purchase, r) }},
 	}
 	if admin {
 		queries = append(queries, struct {

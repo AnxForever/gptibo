@@ -208,6 +208,26 @@ GATEWAYB_KEY_FILE=/run/integrations/gatewayb-key
 
 ---
 
+### 7. canboso（Telegram 买家 API · 账号交付）
+
+```ini
+CANBOSO_ENABLED=true
+CANBOSO_CHECKOUT_ENABLED=true
+CANBOSO_API_BASE=https://canboso.com
+CANBOSO_KEY_FILE=/run/integrations/canboso-key
+CANBOSO_CNY_PER_USD=6.7
+```
+
+- 只有**即时账号交付**能自动发卡：采购响应必须 `status=completed` 且带 `delivery.accounts[]`。`slot` / `upgrade_account` 由上游人工履约，响应里没有凭据，不要映射。
+- 套餐 → 商品号与美元成本上限写死在 `internal/procurement/service.go` 的 `canbosoMappings`（`plus` → `6ad8a9470c1a1b0e66502c1c` 987¢，`gmail-account` → `6ad90b1b0c1a1b0e66654295` 96¢）。
+- 采购必须带 `Idempotency-Key`；代码用 `cbx_<订单号>`，重试不会重复扣款。写入过一次之后只读，不再二次下单。
+- 钱包是美元余额，必须先充值。余额不足的 400 会被识别成 `ErrCanbosoBalance` 并直接拒单。
+- 商品列表响应约 400 KB，超过其它供应商的 256 KB 上限，canboso 用自己的 4 MB 边界。
+- `gmail-account` / `plus` 的通道随配置切换：配了 canboso 就走 canboso，否则 `gmail-account` 仍回到旧的 `ACCOUNT_SUPPLIER_*`。
+- 交付值渲染成单行（`账号  密码：…  验证邮箱：…`）：`delivery.ValidValue` 拒绝控制字符，不能换行。
+
+---
+
 ## 五、接入顺序（建议）
 
 ```mermaid

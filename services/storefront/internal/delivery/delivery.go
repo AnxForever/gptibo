@@ -125,7 +125,7 @@ func (s Service) View(ctx context.Context, id string) (map[string]any, error) {
 		out["preview"] = m
 	}
 	var automatic bool
-	e = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM delivery_supplier_orders WHERE order_id=$1)`, id).Scan(&automatic)
+	e = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM delivery_supplier_orders WHERE order_id=$1 UNION ALL SELECT 1 FROM canboso_orders WHERE order_id=$1)`, id).Scan(&automatic)
 	if e != nil {
 		return nil, e
 	}
@@ -216,7 +216,7 @@ func (s Service) Act(ctx context.Context, id, token string, in Input, system boo
 	}
 	if in.Action == "save" {
 		var auto bool
-		e = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM delivery_supplier_orders WHERE order_id=$1)`, id).Scan(&auto)
+		e = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM delivery_supplier_orders WHERE order_id=$1 UNION ALL SELECT 1 FROM canboso_orders WHERE order_id=$1)`, id).Scan(&auto)
 		if e != nil {
 			return e
 		}

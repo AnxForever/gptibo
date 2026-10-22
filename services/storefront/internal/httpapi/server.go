@@ -187,7 +187,7 @@ func Router(s *store.Store, workerID string, logger *slog.Logger, options ...Opt
 				}
 				p := opts.Procurement.Availability(ctx, original)
 				for i := range plans {
-					if procurement.Kind(plans[i].ID) != "" {
+					if opts.Procurement.Supports(plans[i].ID) {
 						plans[i].Enabled = p[i].Enabled
 					}
 				}

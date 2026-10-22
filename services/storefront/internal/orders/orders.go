@@ -447,7 +447,7 @@ func (s Service) Action(ctx context.Context, id string, access *Access, adminTok
 			return o, Conflict()
 		}
 		var busy bool
-		e = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM recharge_orders WHERE order_id=$1 AND lease_until>$2 UNION ALL SELECT 1 FROM email_deliveries WHERE order_id=$1 AND lease_until>$2 UNION ALL SELECT 1 FROM account_supplier_orders WHERE order_id=$1 AND (lease_until>$2 OR state IN ('creating','unknown')) UNION ALL SELECT 1 FROM delivery_supplier_orders WHERE order_id=$1 AND (lease_until>$2 OR state IN ('creating','unknown','pending')) UNION ALL SELECT 1 FROM xgift_purchases WHERE order_id=$1 AND (lease_until>$2 OR state IN ('creating','unknown','pending')) UNION ALL SELECT 1 FROM payments WHERE order_id=$1 AND lease_until>$2)`, id, time.Now().UnixMilli()).Scan(&busy)
+		e = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM recharge_orders WHERE order_id=$1 AND lease_until>$2 UNION ALL SELECT 1 FROM email_deliveries WHERE order_id=$1 AND lease_until>$2 UNION ALL SELECT 1 FROM account_supplier_orders WHERE order_id=$1 AND (lease_until>$2 OR state IN ('creating','unknown')) UNION ALL SELECT 1 FROM delivery_supplier_orders WHERE order_id=$1 AND (lease_until>$2 OR state IN ('creating','unknown','pending')) UNION ALL SELECT 1 FROM canboso_orders WHERE order_id=$1 AND (lease_until>$2 OR state IN ('creating','unknown','pending')) UNION ALL SELECT 1 FROM xgift_purchases WHERE order_id=$1 AND (lease_until>$2 OR state IN ('creating','unknown','pending')) UNION ALL SELECT 1 FROM payments WHERE order_id=$1 AND lease_until>$2)`, id, time.Now().UnixMilli()).Scan(&busy)
 		if e != nil {
 			return o, e
 		}

@@ -182,7 +182,7 @@ func EmailKind(plan string) string {
 	switch plan {
 	case "gemini-pro-18m":
 		return "link"
-	case "duolingo-12m", "gmail-account":
+	case "duolingo-12m", "gmail-account", "plus":
 		return "cdk"
 	}
 	return ""

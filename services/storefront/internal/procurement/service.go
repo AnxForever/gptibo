@@ -19,14 +19,17 @@ import (
 )
 
 type Service struct {
-	Store                                               *store.Store
-	Auth                                                *auth.Service
-	Delivery                                            delivery.Service
-	AccountSupplier                                             *AccountSupplier
-	DeliverySupplier                                             *DeliverySupplier
-	GmailEnabled, NYEnabled, EmailEnabled, PaymentReady bool
-	GoodsID, MaxCents                                   int64
-	FX                                                  float64
+	Store                                   *store.Store
+	Auth                                    *auth.Service
+	Delivery                                delivery.Service
+	AccountSupplier                         *AccountSupplier
+	DeliverySupplier                        *DeliverySupplier
+	Canboso                                 *CanbosoSupplier
+	GmailEnabled, NYEnabled, CanbosoEnabled bool
+	EmailEnabled, PaymentReady              bool
+	GoodsID, MaxCents                       int64
+	FX                                      float64
+	CanbosoFX                               float64
 }
 type Purchase struct {
 	ID           string  `json:"order_id"`
@@ -54,6 +57,20 @@ type Purchase struct {
 	USDMicros    *int64  `json:"actual_usd_micros"`
 	Value        *string `json:"value"`
 	Next         int64   `json:"next_check_at"`
+	Product      *string `json:"product_id"`
+	Delivery     *string `json:"delivery"`
+}
+
+// canbosoMappings fixes the upstream product and the USD cost ceiling (in
+// cents) for each plan this channel can deliver. Only instant account
+// deliveries are listed: slots and account upgrades are filled by hand
+// upstream and would arrive without credentials.
+var canbosoMappings = map[string]struct {
+	Product string
+	Ceiling int64
+}{
+	"plus":          {"6ad8a9470c1a1b0e66502c1c", 987},
+	"gmail-account": {"6ad90b1b0c1a1b0e66654295", 96},
 }
 
 func table(kind string) string {
@@ -62,6 +79,9 @@ func table(kind string) string {
 	}
 	if kind == "delivery_supplier" {
 		return "delivery_supplier_orders"
+	}
+	if kind == "canboso" {
+		return "canboso_orders"
 	}
 	panic("invalid procurement kind")
 }
@@ -83,15 +103,35 @@ func Kind(plan string) string {
 	}
 	return ""
 }
+
+// kind resolves a plan against the channels that are actually configured: the
+// Canboso mapping wins over the legacy account supplier only while a Canboso
+// client exists, so an unconfigured channel never captures a plan.
+func (s *Service) kind(plan string) string {
+	if s.Canboso != nil {
+		if _, ok := canbosoMappings[plan]; ok {
+			return "canboso"
+		}
+	}
+	return Kind(plan)
+}
+
+// Supports reports whether automatic procurement owns the plan at all.
+func (s *Service) Supports(plan string) bool {
+	return s.kind(plan) != ""
+}
+
 func (s *Service) Enabled(plan string) bool {
 	if !s.EmailEnabled || !s.PaymentReady || s.Delivery.Sender == nil {
 		return false
 	}
-	switch Kind(plan) {
+	switch s.kind(plan) {
 	case "gmail":
 		return s.GmailEnabled && s.AccountSupplier != nil && s.GoodsID > 0 && s.MaxCents > 0
 	case "delivery_supplier":
 		return s.NYEnabled && s.DeliverySupplier != nil && s.FX > 0 && s.FX <= 100
+	case "canboso":
+		return s.CanbosoEnabled && s.Canboso != nil && s.CanbosoFX > 0 && s.CanbosoFX <= 100
 	}
 	return false
 }
@@ -100,18 +140,28 @@ func (s *Service) quote(ctx context.Context, plan string, sale int64, cost *int6
 		return Goods{}, fault.New(409, "自动发货暂未开放。")
 	}
 	ceiling := s.MaxCents
-	if Kind(plan) == "delivery_supplier" {
+	switch s.kind(plan) {
+	case "delivery_supplier":
 		ceiling = int64(math.Ceil(float64(mappings[plan].Ceiling) * s.FX))
+	case "canboso":
+		ceiling = int64(math.Ceil(float64(canbosoMappings[plan].Ceiling) * s.CanbosoFX))
 	}
 	if ceiling >= sale || (cost != nil && (ceiling >= *cost || *cost > sale)) {
 		return Goods{}, fault.New(409, "采购成本与售价配置不匹配。")
 	}
-	if Kind(plan) == "gmail" {
+	if s.kind(plan) == "gmail" {
 		g, e := s.AccountSupplier.Goods(ctx, s.GoodsID)
 		if e == nil {
 			e = validateGoods(g, ceiling)
 		}
 		return g, e
+	}
+	if s.kind(plan) == "canboso" {
+		products, e := s.Canboso.Products(ctx)
+		if e == nil {
+			e = validateCanboso(products, canbosoMappings[plan].Product, canbosoMappings[plan].Ceiling)
+		}
+		return Goods{}, e
 	}
 	products, e := s.DeliverySupplier.Products(ctx)
 	if e == nil {
@@ -135,9 +185,15 @@ func (s *Service) Snapshot(ctx context.Context, tx pgx.Tx, o orders.Order, _ ord
 	if e = tx.QueryRow(ctx, `SELECT delivery_instructions FROM catalog_plans WHERE id=$1`, o.Plan).Scan(&instructions); e != nil {
 		return e
 	}
-	if Kind(o.Plan) == "gmail" {
+	switch s.kind(o.Plan) {
+	case "gmail":
 		_, e = tx.Exec(ctx, `INSERT INTO account_supplier_orders(order_id,goods_id,goods_name,api_base,app_id,max_cost_cents,instructions,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, o.ID, g.ID, g.Name, s.AccountSupplier.Base, s.AccountSupplier.App, s.MaxCents, instructions, time.Now().UnixMilli())
-	} else {
+	case "canboso":
+		m := canbosoMappings[o.Plan]
+		// The buyer key travels in the header; the stored body must not carry it.
+		body := raw(map[string]any{"product_id": m.Product, "quantity": 1})
+		_, e = tx.Exec(ctx, `INSERT INTO canboso_orders(order_id,product_id,credential_hash,request_key,request_body,max_usd_cents,cny_per_usd,instructions,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, o.ID, m.Product, security.Hash(s.Canboso.Key), "cbx_"+o.ID, body, m.Ceiling, s.CanbosoFX, instructions, time.Now().UnixMilli())
+	default:
 		m := mappings[o.Plan]
 		// Only the two documented fields: upstreams reject unknown parameters.
 		body := raw(map[string]any{"service_id": m.ID, "quantity": 1})
@@ -148,7 +204,7 @@ func (s *Service) Snapshot(ctx context.Context, tx pgx.Tx, o orders.Order, _ ord
 func (s *Service) Availability(_ context.Context, plans []catalog.Plan) []catalog.Plan {
 	for i := range plans {
 		p := &plans[i]
-		if Kind(p.ID) == "" {
+		if !s.Supports(p.ID) {
 			continue
 		}
 		if !s.Enabled(p.ID) {
@@ -163,6 +219,10 @@ func eligible(o orders.Order) bool {
 func (s *Service) account(kind string, p Purchase) error {
 	if kind == "gmail" {
 		if s.AccountSupplier != nil && p.Base == s.AccountSupplier.Base && p.App == s.AccountSupplier.App {
+			return nil
+		}
+	} else if kind == "canboso" {
+		if s.Canboso != nil && p.Fingerprint == security.Hash(s.Canboso.Key) {
 			return nil
 		}
 	} else if s.DeliverySupplier != nil && p.Fingerprint == security.Hash(s.DeliverySupplier.Key) {
@@ -189,7 +249,7 @@ func (s *Service) Fulfill(ctx context.Context, id string) error {
 	if e != nil {
 		return e
 	}
-	kind := Kind(o.Plan)
+	kind := s.kind(o.Plan)
 	if kind == "" {
 		return nil
 	}
@@ -237,7 +297,7 @@ func (s *Service) Fulfill(ctx context.Context, id string) error {
 		defer cancel()
 		if runError != nil {
 			extra := ""
-			if kind == "delivery_supplier" {
+			if kind == "delivery_supplier" || kind == "canboso" {
 				extra = ",next_check_at=$3+60000"
 			}
 			_, _ = s.Store.DB.Exec(c, `UPDATE `+table(kind)+` SET state=CASE WHEN state='creating' THEN 'unknown' ELSE state END,updated_at=$3`+extra+` WHERE order_id=$1 AND lease_token=$2`, id, lease, time.Now().UnixMilli())
@@ -245,9 +305,12 @@ func (s *Service) Fulfill(ctx context.Context, id string) error {
 		_, _ = s.Store.DB.Exec(c, `UPDATE `+table(kind)+` SET lease_until=0 WHERE order_id=$1 AND lease_token=$2`, id, lease)
 	}()
 	if p.State != "purchased" {
-		if kind == "gmail" {
+		switch kind {
+		case "gmail":
 			runError = s.gmail(ctx, p)
-		} else {
+		case "canboso":
+			runError = s.canboso(ctx, p)
+		default:
 			runError = s.delivery_supplier(ctx, p)
 		}
 		if runError != nil {
@@ -385,12 +448,12 @@ func (s *Service) prepareDelivery(ctx context.Context, kind string, p Purchase) 
 }
 func (s *Service) Reconcile(ctx context.Context) error {
 	var first error
-	for _, kind := range []string{"gmail", "delivery_supplier"} {
-		if (kind == "gmail" && s.AccountSupplier == nil) || (kind == "delivery_supplier" && s.DeliverySupplier == nil) {
+	for _, kind := range []string{"gmail", "delivery_supplier", "canboso"} {
+		if (kind == "gmail" && s.AccountSupplier == nil) || (kind == "delivery_supplier" && s.DeliverySupplier == nil) || (kind == "canboso" && s.Canboso == nil) {
 			continue
 		}
 		extra := ""
-		if kind == "delivery_supplier" {
+		if kind == "delivery_supplier" || kind == "canboso" {
 			extra = " AND p.next_check_at<=$1"
 		}
 		rows, e := orders.Rows(ctx, s.Store.DB, `SELECT p.order_id FROM `+table(kind)+` p JOIN orders o ON o.id=p.order_id WHERE p.state<>'rejected' AND p.lease_until<=$1`+extra+` AND o.mode='live' AND o.is_test=0 AND o.payment_status='paid' AND o.refund_hold=0 AND o.refunded_cents=0 AND o.redemption_blocked=0 AND o.status IN('session','processing') ORDER BY p.updated_at LIMIT 10`, time.Now().UnixMilli())

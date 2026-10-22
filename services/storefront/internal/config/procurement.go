@@ -66,5 +66,27 @@ func LoadProcurement() (*procurement.Service, error) {
 			return nil, errors.New("invalid DELIVERY_SUPPLIER_CNY_PER_USD")
 		}
 	}
+	s.CanbosoEnabled, e = flag("CANBOSO_CHECKOUT_ENABLED")
+	if e != nil {
+		return nil, e
+	}
+	enabled, e = flag("CANBOSO_ENABLED")
+	if e != nil {
+		return nil, e
+	}
+	if enabled {
+		key, e := Secret("CANBOSO_KEY")
+		if e != nil {
+			return nil, e
+		}
+		s.Canboso, e = procurement.NewCanbosoSupplier(os.Getenv("CANBOSO_API_BASE"), key)
+		if e != nil {
+			return nil, e
+		}
+		s.CanbosoFX, e = strconv.ParseFloat(os.Getenv("CANBOSO_CNY_PER_USD"), 64)
+		if e != nil || !(s.CanbosoFX > 0 && s.CanbosoFX <= 100) {
+			return nil, errors.New("invalid CANBOSO_CNY_PER_USD")
+		}
+	}
 	return s, nil
 }

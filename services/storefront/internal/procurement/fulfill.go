@@ -189,3 +189,109 @@ func (s *Service) delivery_supplier(ctx context.Context, p Purchase) error {
 	}
 	return tx.Commit(ctx)
 }
+
+// canboso buys one account from the buyer-key shop. The purchase response is
+// the only place the credentials appear: the history endpoint reports status
+// only, so an order that is not completed at purchase time can never be
+// delivered automatically and is parked for an operator.
+func (s *Service) canboso(ctx context.Context, p Purchase) error {
+	if p.Product == nil {
+		return errors.New("missing canboso product")
+	}
+	if p.Attempted == nil {
+		products, e := s.Canboso.Products(ctx)
+		if e != nil {
+			return e
+		}
+		if e = validateCanboso(products, *p.Product, p.MaxUSD); e != nil {
+			return e
+		}
+		if p, e = s.start(ctx, "canboso", p); e != nil {
+			return e
+		}
+		order, e := s.Canboso.Purchase(ctx, *p.Product, p.Key)
+		if errors.Is(e, ErrRejected) || errors.Is(e, ErrCanbosoBalance) {
+			return s.reject(ctx, "canboso", p, "canboso-purchase-rejected", "供应商拒绝采购或钱包余额不足，请核对原订单售后")
+		}
+		if errors.Is(e, ErrCanbosoInventory) {
+			return s.deferCanboso(ctx, p, 60000)
+		}
+		if e != nil {
+			return e
+		}
+		if e = s.remember(ctx, "canboso", p, order.Code); e != nil {
+			return e
+		}
+		return s.settleCanboso(ctx, p, order, true)
+	}
+	// A write may already have happened: only read from here on. Replaying the
+	// same idempotency key is safe but the history read costs nothing.
+	if p.Supplier == nil {
+		return orders.Conflict()
+	}
+	order, e := s.Canboso.Order(ctx, *p.Supplier)
+	if errors.Is(e, ErrRejected) {
+		return s.deferCanboso(ctx, p, 60000)
+	}
+	if e != nil {
+		return e
+	}
+	return s.settleCanboso(ctx, p, order, false)
+}
+
+// deferCanboso parks the purchase until the next reconciliation pass.
+func (s *Service) deferCanboso(ctx context.Context, p Purchase, delay int64) error {
+	_, e := s.Store.DB.Exec(ctx, `UPDATE canboso_orders SET state='pending',next_check_at=$1,updated_at=$2 WHERE order_id=$3 AND lease_token=$4 AND lease_until>$2`, time.Now().UnixMilli()+delay, time.Now().UnixMilli(), p.ID, p.Lease)
+	return e
+}
+
+func (s *Service) settleCanboso(ctx context.Context, p Purchase, order CanbosoOrder, direct bool) error {
+	switch order.Status {
+	case "completed":
+		if len(order.Delivery.Accounts) != 1 {
+			if !direct {
+				return s.deferCanboso(ctx, p, 3600000)
+			}
+			return errors.New("canboso delivery not ready")
+		}
+	case "paid", "pending", "processing":
+		return s.deferCanboso(ctx, p, 600000)
+	case "cancelled", "refunded", "failed":
+		return s.reject(ctx, "canboso", p, "canboso-purchase-failed", "供应商确认采购失败或已退款，请通过原订单处理售后")
+	default:
+		return errors.New("unexpected canboso order status")
+	}
+	if order.Product != "" && *p.Product != order.Product {
+		return errors.New("canboso product mismatch")
+	}
+	value, e := canbosoValue(order.Delivery.Accounts[0])
+	if e != nil {
+		return e
+	}
+	usd := p.MaxUSD
+	if direct {
+		if usd, e = canbosoUSDCents(order.Payment.Amount); e != nil || order.Payment.Currency != "USD" {
+			return errors.New("invalid canboso charge")
+		}
+		if usd > p.MaxUSD {
+			return errors.New("canboso charge above ceiling")
+		}
+	}
+	tx, e := s.Store.DB.Begin(ctx)
+	if e != nil {
+		return e
+	}
+	defer tx.Rollback(ctx)
+	o, p, e := s.fence(ctx, tx, "canboso", p)
+	if e != nil {
+		return e
+	}
+	if !delivery.ValidValue(orders.EmailKind(o.Plan), value) {
+		return errors.New("invalid supplier delivery value")
+	}
+	_, e = tx.Exec(ctx, `UPDATE canboso_orders SET state='purchased',actual_usd_cents=$1,actual_cost_cents=$2,delivery=$3,value=$4,updated_at=$5,actual_usd_micros=$6 WHERE order_id=$7`, usd, int64(math.Round(float64(usd)*p.FX)), raw(order.Delivery.Accounts), value, time.Now().UnixMilli(), usd*10000, p.ID)
+	if e != nil {
+		return e
+	}
+	return tx.Commit(ctx)
+}

@@ -41,7 +41,7 @@ func registerProcurement(admin *gin.RouterGroup, s *procurement.Service, token f
 		v, e := s.Goods(c.Request.Context(), 1, "", id)
 		reply(c, v, e)
 	})
-	for suffix, kind := range map[string]string{"account_supplier": "gmail", "delivery_supplier": "delivery_supplier"} {
+	for suffix, kind := range map[string]string{"account_supplier": "gmail", "delivery_supplier": "delivery_supplier", "canboso": "canboso"} {
 		admin.GET("/orders/:id/"+suffix, func(c *gin.Context) { v, e := s.View(c.Request.Context(), kind, c.Param("id")); reply(c, v, e) })
 		admin.POST("/orders/:id/"+suffix, func(c *gin.Context) {
 			var in procurement.AdminInput

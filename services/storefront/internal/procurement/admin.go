@@ -16,7 +16,7 @@ func (s *Service) View(ctx context.Context, kind, id string) (map[string]any, er
 	if e != nil {
 		return nil, e
 	}
-	if Kind(o.Plan) != kind {
+	if s.kind(o.Plan) != kind {
 		return nil, orders.Conflict()
 	}
 	p, e := find(ctx, s.Store.DB, kind, id)
@@ -56,7 +56,7 @@ func (s *Service) Act(ctx context.Context, kind, id, token string, in AdminInput
 		if e != nil {
 			return e
 		}
-		if Kind(o.Plan) != kind {
+		if s.kind(o.Plan) != kind {
 			return orders.Conflict()
 		}
 		return s.Fulfill(ctx, id)
@@ -84,7 +84,7 @@ func (s *Service) Act(ctx context.Context, kind, id, token string, in AdminInput
 	if e != nil {
 		return e
 	}
-	if Kind(o.Plan) != kind || o.Version != *in.OrderVersion || p.Updated != *in.Updated || p.Until > time.Now().UnixMilli() {
+	if s.kind(o.Plan) != kind || o.Version != *in.OrderVersion || p.Updated != *in.Updated || p.Until > time.Now().UnixMilli() {
 		return orders.Conflict()
 	}
 	action, note := kind+"-purchase-reconciled", "管理员确认原采购单无扣款及无发货："+strings.TrimSpace(in.Note)

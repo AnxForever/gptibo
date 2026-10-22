@@ -327,7 +327,13 @@ const geminiService = "S_09"
 var mappings = map[string]struct {
 	ID      string
 	Ceiling int64
-}{"gemini-pro-18m": {geminiService, 60}, "duolingo-12m": {"S_03", 60}}
+}{
+	// Ceilings are USD cents and must sit at or above the live upstream price,
+	// otherwise quote() rejects the plan with a generic error instead of the
+	// honest "out of stock". S_09 currently quotes 0.75 USD.
+	"gemini-pro-18m": {geminiService, 80},
+	"duolingo-12m":   {"S_03", 60},
+}
 
 func (n *DeliverySupplier) Products(ctx context.Context) ([]NYProduct, error) {
 	var out struct {

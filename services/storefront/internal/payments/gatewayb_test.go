@@ -40,6 +40,9 @@ func TestGATEWAYBBaseOverrideOmitsEmptyChannel(t *testing.T) {
 		if req.URL.Host != "api.example.test" || !strings.HasPrefix(req.URL.Path, "/gw/") {
 			t.Fatalf("unexpected destination %s", req.URL.Host+req.URL.Path)
 		}
+		if req.Header.Get("User-Agent") != "anx-storefront/1.0" {
+			t.Fatal("gateway requests must not use Go's default user-agent")
+		}
 		if req.Method == http.MethodGet {
 			return zResponse(map[string]any{"code": 1, "pid": 1001, "type": "alipay", "money": "1.00", "out_trade_no": gatewaybOrderID(o.ID), "trade_no": "TRADE-1", "status": 1}), nil
 		}

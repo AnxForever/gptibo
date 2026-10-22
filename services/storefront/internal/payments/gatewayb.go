@@ -92,6 +92,9 @@ func (z *GATEWAYB) call(ctx context.Context, path string, v map[string]string, g
 	if err != nil {
 		return nil, errors.New("invalid GATEWAYB request")
 	}
+	// The gateway's edge drops Go's default client user-agent before it reaches
+	// the merchant API, so identify this service explicitly.
+	req.Header.Set("User-Agent", "anx-storefront/1.0")
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}

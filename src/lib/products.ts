@@ -13,6 +13,11 @@ export const SMS_STEPS = ['选择付款', '获取手机号', '查询结果'] as 
 export const UPCOMING_PRODUCTS = [
   { id: 'claude', name: 'Claude', category: 'AI 订阅', description: 'Claude 订阅服务，暂未开放购买。', tags: ['套餐待公布', '交付方式待公布'] },
   { id: 'grok', name: 'Grok', category: 'AI 订阅', description: 'Grok 订阅服务，暂未开放购买。', tags: ['套餐待公布', '交付方式待公布'] },
+  { id: 'muse', name: 'Muse', category: 'AI 订阅', description: 'Muse AI 订阅与 API 额度，暂未开放购买。', tags: ['套餐待公布', '交付方式待公布'] },
+  { id: 'cursor', name: 'Cursor', category: '开发工具', description: 'Cursor Pro 订阅，暂未开放购买。', tags: ['套餐待公布', '交付方式待公布'] },
+  { id: 'perplexity', name: 'Perplexity', category: 'AI 订阅', description: 'Perplexity Pro 订阅，暂未开放购买。', tags: ['套餐待公布', '交付方式待公布'] },
+  { id: 'canva', name: 'Canva', category: '设计工具', description: 'Canva Pro 与团队席位，暂未开放购买。', tags: ['套餐待公布', '交付方式待公布'] },
+  { id: 'notion', name: 'Notion', category: '效率工具', description: 'Notion Plus 与 Business 年费，暂未开放购买。', tags: ['套餐待公布', '交付方式待公布'] },
 ] as const
 export function productPlans(id: ProductId) { return PLANS.filter(plan => plan.productId === id) }
 export function productForPlan(planId: PlanId) { return PRODUCTS.find(product => product.id === ORDER_PLANS.find(plan => plan.id === planId)!.productId)! }

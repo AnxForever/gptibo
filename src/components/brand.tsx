@@ -18,6 +18,11 @@ export function ProductLogo({ productId }: { productId: string }) {
   if (productId === 'gemini') return <GeminiMark />
   if (productId === 'gmail') return <Mail className="product-logo" style={{ background: 'none' }} aria-hidden="true" />
   const slug = productId === 'chatgpt' ? 'openai' : productId === 'codex-sms' ? 'codex' : productId
+  // Brands without a drawn logo still need a mark, otherwise the shipped
+  // companies show an empty square.
+  if (!['openai', 'codex', 'claude', 'grok'].includes(slug)) {
+    return <span className="product-logo" style={{ maskImage: 'none', background: 'none', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 600 }} aria-hidden="true">{productId.slice(0, 1).toUpperCase()}</span>
+  }
   return <span className="product-logo" style={{ maskImage: `url(/brands/${slug}.svg)` }} aria-hidden="true" />
 }
 export function SuccessMark() {

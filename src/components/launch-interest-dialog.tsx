@@ -7,7 +7,7 @@ import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { ProductMark } from './brand'
 
-export type InterestProduct = { id: 'claude' | 'grok' | 'gmail'; name: string }
+export type InterestProduct = { id: 'claude' | 'grok' | 'gmail' | 'muse' | 'cursor' | 'perplexity' | 'canva' | 'notion'; name: string }
 type Receipt = { token: string; confirmed: boolean }
 const receiptKey = (product: string) => `ymx-interest-${product}`
 function readReceipt(product: string): Receipt | null {

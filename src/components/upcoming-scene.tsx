@@ -15,6 +15,8 @@ const BRANDS: Record<string, { color: string; dark?: string; glow?: string; imag
   perplexity: { color: '#1fb8cd' },
   canva: { color: '#00c4cc' },
   notion: { color: '#0f0f0f', dark: '#f2f2f2', glow: '#7c8290' },
+  claude: { color: '#c1694f' },
+  grok: { color: '#0f0f0f', dark: '#f2f2f2', glow: '#7c8290' },
 }
 
 /** Hover border tint, kept in sync with each mark so the card edge picks up the brand. */
@@ -24,6 +26,8 @@ export const BRAND_ACCENT: Record<string, string> = {
   perplexity: '#9adfe9',
   canva: '#8ee0e7',
   notion: '#c9ced8',
+  claude: '#e8b5a3',
+  grok: '#c9ced8',
 }
 
 export function UpcomingScene({ productId }: { productId: string }) {

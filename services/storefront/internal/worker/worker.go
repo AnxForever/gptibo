@@ -62,7 +62,7 @@ func Run(ctx context.Context, s *store.Store, id string, logger *slog.Logger, jo
 	}
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
-	var lastCleanup time.Time
+	var lastCleanup, lastAnalytics time.Time
 	for {
 		beat, cancel := context.WithTimeout(ctx, 5*time.Second)
 		err := s.Heartbeat(beat, id)
@@ -78,6 +78,15 @@ func Run(ctx context.Context, s *store.Store, id string, logger *slog.Logger, jo
 				logger.Error("authentication retention failed")
 			}
 			lastCleanup = time.Now()
+		}
+		if time.Since(lastAnalytics) >= time.Hour {
+			analytics, cancel := context.WithTimeout(ctx, 10*time.Second)
+			err := s.PruneAnalytics(analytics, 180, 365)
+			cancel()
+			if err != nil && ctx.Err() == nil {
+				logger.Error("analytics retention failed")
+			}
+			lastAnalytics = time.Now()
 		}
 		select {
 		case <-ctx.Done():

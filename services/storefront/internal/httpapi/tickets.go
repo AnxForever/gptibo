@@ -20,6 +20,10 @@ func registerTickets(admin, partner *gin.RouterGroup, m management.Service, toke
 		if !read(c, &in) {
 			return
 		}
+		if e := m.Auth.Limit(c.Request.Context(), "partner-ticket:"+c.MustGet("principal").(auth.Principal).Subject, 10, 3600); e != nil {
+			fail(c, e)
+			return
+		}
 		e := m.CreateTicket(c.Request.Context(), token(c, "partner"), in)
 		reply(c, gin.H{"id": in.Key}, e)
 	})

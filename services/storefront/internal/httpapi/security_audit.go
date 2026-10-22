@@ -3,6 +3,8 @@ package httpapi
 import (
 	"context"
 	"log/slog"
+	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -60,6 +62,14 @@ func securityAudit(s *securityaudit.Service, logger *slog.Logger) gin.HandlerFun
 		status := c.Writer.Status()
 		sensitive := strings.HasPrefix(route, "/api/admin/") || strings.HasPrefix(route, "/api/partner/") || strings.HasPrefix(route, "/api/orders")
 		suspicious := status == 401 || status == 403 || status == 404 || status == 405 || (status == 400 && (strings.Contains(route, "/auth/") || strings.Contains(route, "/recovery/") || strings.Contains(route, "/admin/login")))
+		// A page on another origin can make the visitor's browser request an
+		// unauthenticated URL and collect the 401/404 it earns. Counting those
+		// towards the IP ban let any third-party site lock a visitor out for 15
+		// minutes, so cross-site failures are recorded but never counted as
+		// grounds for a ban.
+		if suspicious && crossSite(c.Request) {
+			suspicious = false
+		}
 		if !sensitive && !suspicious {
 			return
 		}
@@ -87,4 +97,30 @@ func securityAudit(s *securityaudit.Service, logger *slog.Logger) gin.HandlerFun
 			logger.Error("security audit unavailable", "request_id", e.RequestID)
 		}
 	}
+}
+
+// crossSite reports whether the request came from another origin. Browsers send
+// Sec-Fetch-Site for every subresource; clients that predate it only carry
+// Origin or Referer. A request with no origin evidence (scanners, scripts) is
+// treated as same-site so genuine probing still counts.
+func crossSite(r *http.Request) bool {
+	switch site := r.Header.Get("Sec-Fetch-Site"); site {
+	case "":
+	case "cross-site":
+		return true
+	default:
+		return false
+	}
+	ref := r.Header.Get("Origin")
+	if ref == "" {
+		ref = r.Header.Get("Referer")
+	}
+	if ref == "" {
+		return false
+	}
+	u, e := url.Parse(ref)
+	if e != nil || u.Host == "" {
+		return true
+	}
+	return !strings.EqualFold(u.Host, r.Host)
 }

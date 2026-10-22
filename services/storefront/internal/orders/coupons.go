@@ -21,6 +21,11 @@ type CouponQuote struct {
 	Price     int64  `json:"priceCents"`
 }
 
+// couponRejected is the only failure any caller may see: telling a guesser
+// apart "no such code", "sold out" and "this email already used it" turns the
+// anonymous quote endpoint into an oracle over partner coupons.
+const couponRejected = "优惠码无效或当前不可用。"
+
 // The coupon row lock serializes reservations across all targeted shops and emails.
 // Orders remain reserved until the payment channel has confirmed closure. A timeout alone never releases a use.
 func couponPrice(ctx context.Context, tx pgx.Tx, partner, shop, plan, email, code string, price, cost int64) (string, int64, error) {
@@ -31,13 +36,13 @@ func couponPrice(ctx context.Context, tx pgx.Tx, partner, shop, plan, email, cod
 	code = strings.ToUpper(strings.TrimSpace(code))
 	e := tx.QueryRow(ctx, `SELECT c.id,c.discount_cents,c.max_uses,c.once_per_email FROM partner_coupons c WHERE c.partner_id=$1 AND c.code=$2 AND c.active AND c.starts_at<=now() AND c.ends_at>now() AND EXISTS(SELECT 1 FROM coupon_targets t WHERE t.coupon_id=c.id AND t.store_id=$3 AND t.plan=$4) FOR UPDATE`, partner, code, shop, plan).Scan(&id, &discount, &limit, &once)
 	if e == pgx.ErrNoRows {
-		return "", 0, fault.New(400, "优惠码无效、已过期或不适用于本店商品。")
+		return "", 0, fault.New(400, couponRejected)
 	}
 	if e != nil {
 		return "", 0, e
 	}
 	if price-discount < cost || price-discount < 1 {
-		return "", 0, fault.New(409, "当前价格无法使用此优惠码，请联系商店。")
+		return "", 0, fault.New(400, couponRejected)
 	}
 	var used, byEmail int
 	e = tx.QueryRow(ctx, `SELECT count(*),count(*) FILTER(WHERE lower(customer_email)=$2) FROM orders o WHERE coupon_id=$1 AND coupon_reserved(o)`, id, email).Scan(&used, &byEmail)
@@ -45,10 +50,10 @@ func couponPrice(ctx context.Context, tx pgx.Tx, partner, shop, plan, email, cod
 		return "", 0, e
 	}
 	if used >= limit {
-		return "", 0, fault.New(409, "优惠码次数已用完或正在被待付款订单占用。")
+		return "", 0, fault.New(400, couponRejected)
 	}
 	if once && byEmail > 0 {
-		return "", 0, fault.New(409, "该邮箱已使用此优惠码或有待付款订单。")
+		return "", 0, fault.New(400, couponRejected)
 	}
 	return id, discount, nil
 }

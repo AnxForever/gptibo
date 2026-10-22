@@ -70,6 +70,12 @@ func registerHierarchy(admin, partner *gin.RouterGroup, m management.Service, to
 		if !read(c, &in) {
 			return
 		}
+		// Creating a child copies every partner price; cap the burst so one
+		// partner cannot churn accounts or coupon rows in a loop.
+		if e := m.Auth.Limit(c.Request.Context(), "partner-child:"+own(c), 5, 3600); e != nil {
+			fail(c, e)
+			return
+		}
 		id, slug, e := m.CreateChild(c.Request.Context(), token(c, "partner"), in.Email)
 		if e != nil {
 			fail(c, e)

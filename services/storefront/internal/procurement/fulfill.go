@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"gptibo/storefront/internal/delivery"
+	"gptibo/storefront/internal/fault"
 	"gptibo/storefront/internal/orders"
 	"math"
 	"net/url"
@@ -198,8 +199,14 @@ func (s *Service) canboso(ctx context.Context, p Purchase) error {
 	if p.Product == nil {
 		return errors.New("missing canboso product")
 	}
+	// The account is frozen on the row at order creation: a later catalogue edit
+	// must never move an in-flight purchase to a different wallet.
+	client := s.CanbosoClient(p.account())
+	if client == nil {
+		return fault.New(409, "采购账户未配置，请恢复原供应商凭据后核对。")
+	}
 	if p.Attempted == nil {
-		products, e := s.Canboso.Products(ctx)
+		products, e := client.Products(ctx)
 		if e != nil {
 			return e
 		}
@@ -209,7 +216,7 @@ func (s *Service) canboso(ctx context.Context, p Purchase) error {
 		if p, e = s.start(ctx, "canboso", p); e != nil {
 			return e
 		}
-		order, e := s.Canboso.Purchase(ctx, *p.Product, p.Key)
+		order, e := client.Purchase(ctx, *p.Product, p.Key)
 		if errors.Is(e, ErrRejected) || errors.Is(e, ErrCanbosoBalance) {
 			return s.reject(ctx, "canboso", p, "canboso-purchase-rejected", "供应商拒绝采购或钱包余额不足，请核对原订单售后")
 		}
@@ -229,7 +236,7 @@ func (s *Service) canboso(ctx context.Context, p Purchase) error {
 	if p.Supplier == nil {
 		return orders.Conflict()
 	}
-	order, e := s.Canboso.Order(ctx, *p.Supplier)
+	order, e := client.Order(ctx, *p.Supplier)
 	if errors.Is(e, ErrRejected) {
 		return s.deferCanboso(ctx, p, 60000)
 	}

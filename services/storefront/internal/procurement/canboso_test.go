@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"gptibo/storefront/internal/security"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -135,5 +136,42 @@ func TestPickKind(t *testing.T) {
 		if got := pickKind(c.sp, c.legacy, c.canboso, c.delivery, c.account); got != c.want {
 			t.Fatalf("%s: pickKind=%q want %q", c.name, got, c.want)
 		}
+	}
+}
+
+func TestParseCanbosoKeyFiles(t *testing.T) {
+	got, e := ParseCanbosoKeyFiles(" key1=/run/integrations/canboso-key-1 , key4=/run/integrations/canboso-key-4 ")
+	if e != nil {
+		t.Fatal(e)
+	}
+	if len(got) != 2 || got[0].Name != "key1" || got[0].Path != "/run/integrations/canboso-key-1" || got[1].Name != "key4" {
+		t.Fatal("unexpected parse", got)
+	}
+	for _, spec := range []string{"", "key1", "Key1=/a", "key1=", "= /a", "key1=/a,key1=/b", "key 1=/a"} {
+		if _, e := ParseCanbosoKeyFiles(spec); e == nil {
+			t.Fatal("accepted", spec)
+		}
+	}
+}
+
+func TestCanbosoAccountResolution(t *testing.T) {
+	first := &CanbosoSupplier{Key: testCanbosoKey}
+	second := &CanbosoSupplier{Key: "tgb_ffffffffffffffffffffffffffffffffffffffff"}
+	s := &Service{Canboso: first, CanbosoKeys: map[string]*CanbosoSupplier{"key4": second}}
+	if s.CanbosoClient("") != first || s.CanbosoClient("key4") != second {
+		t.Fatal("account not resolved")
+	}
+	if s.CanbosoClient("key2") != nil || s.CanbosoClient("missing") != nil {
+		t.Fatal("unknown account resolved")
+	}
+	if !s.CanbosoHash(security.Hash(first.Key)) || !s.CanbosoHash(security.Hash(second.Key)) {
+		t.Fatal("configured key hash rejected")
+	}
+	if s.CanbosoHash(security.Hash("tgb_0000000000000000000000000000000000000000")) {
+		t.Fatal("foreign key hash accepted")
+	}
+	empty := &Service{}
+	if empty.canbosoReady() || empty.CanbosoClient("key4") != nil {
+		t.Fatal("empty service reports a ready canboso channel")
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"gptibo/storefront/internal/procurement"
 	"os"
 	"strconv"
+	"strings"
 )
 
 func LoadProcurement() (*procurement.Service, error) {
@@ -83,6 +84,10 @@ func LoadProcurement() (*procurement.Service, error) {
 		if e != nil {
 			return nil, e
 		}
+		s.CanbosoKeys, e = canbosoKeys()
+		if e != nil {
+			return nil, e
+		}
 		s.CanbosoFX, e = strconv.ParseFloat(os.Getenv("CANBOSO_CNY_PER_USD"), 64)
 		if e != nil || !(s.CanbosoFX > 0 && s.CanbosoFX <= 100) {
 			return nil, errors.New("invalid CANBOSO_CNY_PER_USD")
@@ -90,4 +95,32 @@ func LoadProcurement() (*procurement.Service, error) {
 	}
 	s.Prepare()
 	return s, nil
+}
+
+// canbosoKeys loads the named buyer keys from CANBOSO_KEY_FILES
+// ("key1=/run/integrations/canboso-key-1,key4=/run/integrations/canboso-key-4").
+// Each entry is a file next to the default CANBOSO_KEY_FILE, so secrets never
+// travel in the environment.
+func canbosoKeys() (map[string]*procurement.CanbosoSupplier, error) {
+	spec := strings.TrimSpace(os.Getenv("CANBOSO_KEY_FILES"))
+	if spec == "" {
+		return nil, nil
+	}
+	accounts, e := procurement.ParseCanbosoKeyFiles(spec)
+	if e != nil {
+		return nil, e
+	}
+	out := make(map[string]*procurement.CanbosoSupplier, len(accounts))
+	for _, a := range accounts {
+		b, e := os.ReadFile(a.Path)
+		if e != nil {
+			return nil, errors.New("cannot read canboso key file for " + a.Name)
+		}
+		client, e := procurement.NewCanbosoSupplier(os.Getenv("CANBOSO_API_BASE"), strings.TrimRight(string(b), "\r\n"))
+		if e != nil {
+			return nil, e
+		}
+		out[a.Name] = client
+	}
+	return out, nil
 }

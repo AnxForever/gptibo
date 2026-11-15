@@ -30,7 +30,7 @@ func CheckBindings(ctx context.Context, s *store.Store, pay payments.Service, tb
 		{"recharge_accounts", `SELECT account FROM recharge_orders`, func(v []string) bool { return tb != nil && tb.Client != nil && v[0] == tb.Client.Account() }},
 		{"delivery_supplier_credentials", `SELECT credential_hash FROM delivery_supplier_orders`, func(v []string) bool { return pc != nil && pc.DeliverySupplier != nil && v[0] == security.Hash(pc.DeliverySupplier.Key) }},
 		{"canboso_credentials", `SELECT credential_hash FROM canboso_orders`, func(v []string) bool {
-			return pc != nil && pc.Canboso != nil && v[0] == security.Hash(pc.Canboso.Key)
+			return pc != nil && pc.CanbosoHash(v[0])
 		}},
 		{"gmail_accounts", `SELECT api_base,app_id FROM account_supplier_orders`, func(v []string) bool {
 			return pc != nil && pc.AccountSupplier != nil && v[0] == pc.AccountSupplier.Base && v[1] == pc.AccountSupplier.App

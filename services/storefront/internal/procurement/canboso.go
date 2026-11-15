@@ -37,11 +37,46 @@ var (
 )
 
 var (
-	canbosoKeyPattern   = regexp.MustCompile(`^tgb_[A-Za-z0-9]{16,96}$`)
-	canbosoCodePattern  = regexp.MustCompile(`^[A-Za-z0-9_-]{4,64}$`)
-	canbosoIDPattern    = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
-	canbosoAmountLimits = 100000000.0
+	canbosoKeyPattern     = regexp.MustCompile(`^tgb_[A-Za-z0-9]{16,96}$`)
+	canbosoAccountPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,31}$`)
+	canbosoCodePattern    = regexp.MustCompile(`^[A-Za-z0-9_-]{4,64}$`)
+	canbosoIDPattern      = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
+	canbosoAmountLimits   = 100000000.0
 )
+
+// CanbosoKeyFile is one named buyer key. Plans point at the name; the file is
+// read by the config layer, so parsing stays free of I/O and testable.
+type CanbosoKeyFile struct {
+	Name, Path string
+}
+
+// ParseCanbosoKeyFiles reads CANBOSO_KEY_FILES ("key1=/a,key4=/b"). Names are
+// the stable handles stored in catalog_plans.supplier_account, so they may only
+// use lowercase letters, digits, '_' and '-'.
+func ParseCanbosoKeyFiles(spec string) ([]CanbosoKeyFile, error) {
+	var out []CanbosoKeyFile
+	seen := map[string]bool{}
+	for _, part := range strings.Split(spec, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		name, path, ok := strings.Cut(part, "=")
+		name, path = strings.TrimSpace(name), strings.TrimSpace(path)
+		if !ok || path == "" || !canbosoAccountPattern.MatchString(name) {
+			return nil, errors.New("invalid CANBOSO_KEY_FILES entry")
+		}
+		if seen[name] {
+			return nil, errors.New("duplicate canboso account " + name)
+		}
+		seen[name] = true
+		out = append(out, CanbosoKeyFile{Name: name, Path: path})
+	}
+	if len(out) == 0 {
+		return nil, errors.New("CANBOSO_KEY_FILES is empty")
+	}
+	return out, nil
+}
 
 type CanbosoProduct struct {
 	ID           string `json:"productId"`

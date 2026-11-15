@@ -215,15 +215,19 @@ CANBOSO_ENABLED=true
 CANBOSO_CHECKOUT_ENABLED=true
 CANBOSO_API_BASE=https://canboso.com
 CANBOSO_KEY_FILE=/run/integrations/canboso-key
+CANBOSO_KEY_FILES=key1=/run/integrations/canboso-key-1,key4=/run/integrations/canboso-key-4
 CANBOSO_CNY_PER_USD=6.7
 ```
 
 - 只有**即时账号交付**能自动发卡：采购响应必须 `status=completed` 且带 `delivery.accounts[]`。`slot` / `upgrade_account` 由上游人工履约，响应里没有凭据，不要映射。
-- 套餐 → 商品号与美元成本上限写死在 `internal/procurement/service.go` 的 `canbosoMappings`（`plus` → `6ad8a9470c1a1b0e66502c1c` 987¢，`gmail-account` → `6ad90b1b0c1a1b0e66654295` 96¢）。
+- **多把买家 key 可同时在线**：`CANBOSO_KEY_FILE` 是默认账户（`supplier_account` 为空），`CANBOSO_KEY_FILES` 按 `名字=文件` 注册具名账户。套餐在 `catalog_plans.supplier_account` 写账户名，下单选哪把 key 由这一列决定；订单创建时账户连同商品号一起冻结在 `canboso_orders.supplier_account`，之后改目录不会把在途订单换到别的钱包。账户名只能用 `[a-z0-9_-]`，长度 1–32。
+- 账户名对应的是**哪把 key**，不是哪个卖家：同一平台不返回卖家身份，同名商品在不同 key 下价格与库存也不同。登记新 key 时按来源记 `key1` / `key2` / … 并在渠道档案里写明它是哪把。
+- 套餐 → 商品号、成本上限与账户写在 `catalog_plans`；`internal/procurement/service.go` 的 `canbosoMappings` 只是目录行没有商品号时的兜底（走默认账户）。
+- `gmail-account` 暂不映射 canboso：现有 key 的 Gmail 池与美国 2FA 长效号的口径不一致；映射前必须先改商品文案或找到匹配 SKU。
 - 采购必须带 `Idempotency-Key`；代码用 `cbx_<订单号>`，重试不会重复扣款。写入过一次之后只读，不再二次下单。
-- 钱包是美元余额，必须先充值。余额不足的 400 会被识别成 `ErrCanbosoBalance` 并直接拒单。
+- 钱包是美元余额，必须先充值至**每把参与的 key**。余额不足的 400 会被识别成 `ErrCanbosoBalance` 并直接拒单。
 - 商品列表响应约 400 KB，超过其它供应商的 256 KB 上限，canboso 用自己的 4 MB 边界。
-- `gmail-account` / `plus` 的通道随配置切换：配了 canboso 就走 canboso，否则 `gmail-account` 仍回到旧的 `ACCOUNT_SUPPLIER_*`。
+- `plus` 的通道随配置切换：配了 canboso 就走 canboso；`gmail-account` 在找到匹配的美国 2FA SKU 前保持未映射。
 - 交付值渲染成单行（`账号  密码：…  验证邮箱：…`）：`delivery.ValidValue` 拒绝控制字符，不能换行。
 
 ---

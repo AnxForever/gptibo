@@ -21,6 +21,7 @@ import (
 var ErrRejected = errors.New("supplier explicitly rejected request")
 var ErrReceiptRejected = errors.New("supplier explicitly rejected receipt before purchase")
 var ErrOutOfStock = errors.New("supplier goods out of stock")
+var ErrPriceChanged = errors.New("supplier quote above cost ceiling")
 var identifier = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 
 func client(seconds int) *http.Client {
@@ -346,18 +347,28 @@ func (n *DeliverySupplier) Products(ctx context.Context) ([]NYProduct, error) {
 	normalize(out.Services)
 	return out.Services, e
 }
+
+// validateNY classifies an unusable quote. A SKU that cannot be bought right
+// now — delisted, sold out, disabled or not orderable — is ErrOutOfStock, so
+// checkout answers 409 instead of an upstream failure. A SKU on sale above the
+// configured cost ceiling is ErrPriceChanged; a malformed quote stays a plain
+// error because it means the response drifted.
 func validateNY(products []NYProduct, id string, ceiling int64) error {
 	for _, p := range products {
 		if p.ID != id {
 			continue
 		}
-		if p.Stock == 0 || p.Availability == "sold_out" {
+		if p.Stock == 0 || p.Availability == "sold_out" || (p.Availability != "" && p.Availability != "available") || (p.Orderable != nil && !*p.Orderable) {
 			return ErrOutOfStock
 		}
 		money, e := usdMicros(p.Price)
-		if e == nil && p.Name != "" && p.Stock >= 1 && (p.Availability == "" || p.Availability == "available") && money > 0 && money <= ceiling*10000 {
-			return nil
+		if e != nil || p.Name == "" || p.Stock < 1 || money <= 0 {
+			return errors.New("supplier goods unavailable or quote changed")
 		}
+		if money > ceiling*10000 {
+			return ErrPriceChanged
+		}
+		return nil
 	}
-	return errors.New("supplier goods unavailable or quote changed")
+	return ErrOutOfStock
 }

@@ -353,16 +353,29 @@ func (s *Service) quote(ctx context.Context, plan string, sale int64, cost *int6
 		return Goods{}, e
 	}
 }
+
+// quoteError turns a supplier quote that cannot be bought right now into a
+// client-facing conflict. Upstream SKUs disappear without notice (a delisted
+// service is not an outage), so checkout must not answer with an upstream
+// failure that reads as "the shop is broken".
+func quoteError(e error) error {
+	switch {
+	case e == nil:
+		return nil
+	case errors.Is(e, ErrOutOfStock):
+		return fault.New(409, "商品暂时缺货，请稍后再试。")
+	case errors.Is(e, ErrPriceChanged):
+		return fault.New(409, "商品价格已调整，暂停接单，请联系客服。")
+	}
+	return e
+}
 func (s *Service) Snapshot(ctx context.Context, tx pgx.Tx, o orders.Order, _ orders.CreateInput) error {
 	supplyCost, e := orders.SupplyCost(ctx, tx, o.ID)
 	if e != nil {
 		return e
 	}
 	g, e := s.quote(ctx, o.Plan, o.Price, supplyCost)
-	if errors.Is(e, ErrOutOfStock) {
-		return fault.New(409, "商品暂时缺货，请稍后再试。")
-	}
-	if e != nil {
+	if e = quoteError(e); e != nil {
 		return e
 	}
 	var instructions, supplier, product, account string

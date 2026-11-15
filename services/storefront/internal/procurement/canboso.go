@@ -290,7 +290,7 @@ func validateCanboso(products []CanbosoProduct, id string, ceiling int64) error 
 			return e
 		}
 		if cents > ceiling {
-			return errors.New("canboso price above ceiling")
+			return ErrPriceChanged
 		}
 		return nil
 	}

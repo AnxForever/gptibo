@@ -46,7 +46,7 @@ func TestDeliverySupplierStockFailureIsDistinctFromInvalidQuote(t *testing.T) {
 		{"legacy available", "", 1, &price, false, true},
 		{"invalid stock", "available", -1, &price, false, false},
 		{"invalid price", "available", 1, nil, false, false},
-		{"disabled", "disabled", 10, &price, false, false},
+		{"disabled", "disabled", 10, &price, true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := validateNY([]NYProduct{{ID: "service", Name: "Gemini", Price: tc.price, Stock: tc.stock, Availability: tc.availability}}, "service", 60)
@@ -55,7 +55,22 @@ func TestDeliverySupplierStockFailureIsDistinctFromInvalidQuote(t *testing.T) {
 			}
 		})
 	}
-	if err := validateNY([]NYProduct{{ID: "another", Stock: 0}}, "service", 60); err == nil || errors.Is(err, ErrOutOfStock) {
-		t.Fatal("missing product incorrectly classified as out of stock", err)
+	// A service removed from the upstream catalogue is stock, not an outage:
+	// checkout must answer 409 instead of an upstream failure.
+	if err := validateNY([]NYProduct{{ID: "another", Stock: 0}}, "service", 60); !errors.Is(err, ErrOutOfStock) {
+		t.Fatal("delisted product not classified as out of stock", err)
+	}
+	orderable := false
+	if err := validateNY([]NYProduct{{ID: "service", Name: "Gemini", Price: &price, Stock: 10, Orderable: &orderable}}, "service", 60); !errors.Is(err, ErrOutOfStock) {
+		t.Fatal("unorderable product not classified as out of stock", err)
+	}
+	if err := validateNY([]NYProduct{{ID: "service", Name: "Gemini", Price: &price, Stock: 10}}, "service", 40); !errors.Is(err, ErrPriceChanged) || errors.Is(err, ErrOutOfStock) {
+		t.Fatal("above-ceiling quote not classified as a price change", err)
+	}
+	available := 3.0
+	inStock := CanbosoProduct{ID: "p1", Price: CanbosoPrice{Amount: 9.87, Currency: "USD"}}
+	inStock.Availability.Available = &available
+	if err := validateCanboso([]CanbosoProduct{inStock}, "p1", 900); !errors.Is(err, ErrPriceChanged) {
+		t.Fatal("canboso above-ceiling quote not classified as a price change", err)
 	}
 }

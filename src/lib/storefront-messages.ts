@@ -130,7 +130,7 @@ export const englishMessages: Readonly<Record<string, string>> = {
   '如何购买？': 'How do I buy a service?',
   '选择服务，再进入详情页选择套餐。下单需填写可接收邮件的邮箱，服务开放情况以商品详情为准。': 'Choose a service, then select a plan on its product page. Use an email address where you can receive messages. Check the product page for availability.',
   '目前有哪些商品？': 'What products are available?',
-  'ChatGPT 提供 Plus、Pro 5×、Pro 10×、Pro 25× 四档订阅，Gemini Pro 提供 18 个月会员，多邻国提供 1 年会员，两者通过邮件发货；Gmail 提供美国个人白号，付款后自动邮件发货；Codex 提供按次接码。Claude 与 Grok 待上架，可登记上线提醒。': 'ChatGPT offers Plus, Pro 5×, Pro 10× and Pro 25×. Gemini Pro offers 18 months and Duolingo offers 1 year, delivered by email. Fresh US personal Gmail accounts are automatically delivered by email after payment. Codex SMS is available per use. Claude and Grok are coming soon; you can register your interest.',
+  'ChatGPT 提供 Plus、Pro 5×、Pro 10×、Pro 25× 四档订阅；多邻国提供 1 年会员，通过邮件发货；Gmail 提供美国个人白号，付款后自动邮件发货；Codex 提供按次接码。ElevenLabs Creator 3 个月已上架，付款后自动交付账号资料；Gemini Pro 货源补充中，暂停售卖。Claude 与 Grok 待上架，可登记上线提醒。': 'ChatGPT offers Plus, Pro 5×, Pro 10× and Pro 25×. Duolingo offers 1 year, delivered by email. Fresh US personal Gmail accounts are automatically delivered by email after payment. Codex SMS is available per use. ElevenLabs Creator 3 months is available, with account details delivered automatically. Gemini Pro is temporarily unavailable. Claude and Grok are coming soon; you can register your interest.',
   '在哪里查看结果？': 'Where can I check my order?',
   '通过「我的订单」查看进度或继续服务。订单保存在服务器，也可通过下单邮箱验证找回。': 'Go to My orders to check progress or continue your service. Orders are saved on the server and can be recovered by verifying your order email.',
   '退款如何处理？': 'How do refunds work?',

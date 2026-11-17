@@ -56,9 +56,11 @@ func TestPartnerProductVisibilityIsolationAndOrderLifecycle(t *testing.T) {
 	}
 	for _, shop := range []string{"", slug, otherSlug} {
 		data := object(t, request(h, "GET", "/api/catalog?partner="+shop, nil, nil), 200)
-		expected := 3
+		// The catalogue now ships a launch elevenlabs plan. Hiding chatgpt only
+		// removes plus and pro-5x, so the shop still lists codex-sms and it.
+		expected := 4
 		if shop == slug {
-			expected = 1
+			expected = 2
 		}
 		if len(data["plans"].([]any)) != expected {
 			t.Fatalf("incorrect catalog for %q: %+v", shop, data["plans"])

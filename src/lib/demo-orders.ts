@@ -13,6 +13,7 @@ export const PLANS = [
   { id: 'codex-sms-once', productId: 'codex-sms', name: '单次接码', price: 10, renewalOnly: false, subtitle: '一次接码，清楚明了。', description: '接收一次短信验证码', features: ['按次购买', '订单内查看验证码', '无需提交 Session'] },
   { id: 'gemini-pro-18m', productId: 'gemini', name: '18 个月会员', price: 19.9, renewalOnly: false, subtitle: '让灵感，多一点时间。', description: '18 个月会员 · 领取链接邮件交付', features: ['18 个月会员', '邮件领取链接', '自动发货 · 订单页可领取'] },
   { id: 'duolingo-12m', productId: 'duolingo', name: '1 年会员', price: 19.9, renewalOnly: false, subtitle: '和 Duo 一起，把学习继续。', description: '1 年会员 · 兑换 CDK 邮件交付', features: ['1 年会员', '邮件兑换 CDK', '自动发货 · 订单页可领取'] },
+  { id: 'elevenlabs-creator-3m', productId: 'elevenlabs', name: 'Creator · 3 个月', price: 66.9, renewalOnly: false, subtitle: '把文字，变成声音。', description: 'Creator 会员 3 个月 · 账号资料邮件交付', features: ['Creator 会员 3 个月', '账号资料邮件交付', '自动发货 · 订单页可查看'] },
   { id: 'gmail-account', productId: 'gmail', name: '美国长效白号 · 带 2FA', price: 18.8, renewalOnly: false, subtitle: '一个邮箱，让连接开始。', description: '个人 Gmail 白号 · 账号资料自动邮件交付', features: ['美国个人白号 · 带 2FA', '付款后自动邮件发货', '购买当天首次登录质保'] },
 ] as const
 // Retired plans remain readable without silently changing historical purchases.

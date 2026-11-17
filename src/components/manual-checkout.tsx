@@ -14,6 +14,7 @@ import type { ServerOrder } from '@/lib/use-store'
 import type { CheckoutProps } from './checkout'
 import { PaymentConfirmed, PaymentMessage } from './payment-feedback'
 import { membershipClaimUrl } from '../../shared/membership-claim'
+import { emailProduct } from '../../shared/email-products'
 import '@/styles/live-checkout.css'
 
 type Payment = { amountCents?: number; feeCents?: number; feeBps?: number; provider?: string; status: string; qr: string | null; expiresAt: number }
@@ -31,6 +32,7 @@ export function ManualCheckout({ order, open, onUpdated, onOrderUpdated, onOrder
   const xgift = order.xgift
   const gmail = order.plan === 'gmail-account'
   const claimUrl = gmail ? null : membershipClaimUrl(order.delivery?.value)
+  const deliveryLabel = emailProduct(order.plan)?.label ?? '兑换 CDK'
   const emailDelivery = Boolean(order.delivery)
   const automatic = Boolean(order.delivery?.automatic)
   const paused = order.redemptionBlocked || order.refundHold || (order.refundedCents ?? 0) >= Math.round(order.price * 100)
@@ -81,14 +83,14 @@ export function ManualCheckout({ order, open, onUpdated, onOrderUpdated, onOrder
       </>}
       {xgift && payment && order.status === 'pending' && <Button variant="ghost" disabled={busy} onClick={() => void refresh('close')}>关闭未付款订单</Button>}
       {!xgift && order.paymentStatus === 'paid' && <PaymentConfirmed>付款已确认，无需重复支付。</PaymentConfirmed>}
-      {!xgift && !order.delivery?.value && ['session', 'processing'].includes(order.status) && <PaymentMessage state="idle" title={emailDelivery ? order.status === 'processing' ? '发货处理中' : '等待邮件发货' : order.status === 'processing' ? '正在人工开通' : '等待人工开通'}>{emailDelivery ? <>付款已确认，{automatic ? '系统将自动交付领取资料至订单页，并同步发送至' : gmail ? '系统将自动发送账号资料及使用说明至' : <>工作人员将把{order.delivery?.kind === 'link' ? '领取链接' : '兑换 CDK'}与说明发送至</>} <strong>{order.customerEmail}</strong>。请留意收件箱与垃圾邮件。</> : '请通过下方支持入口联系工作人员，提供订单号及要开通的账号。处理结果会更新到本订单。'}</PaymentMessage>}
+      {!xgift && !order.delivery?.value && ['session', 'processing'].includes(order.status) && <PaymentMessage state="idle" title={emailDelivery ? order.status === 'processing' ? '发货处理中' : '等待邮件发货' : order.status === 'processing' ? '正在人工开通' : '等待人工开通'}>{emailDelivery ? <>付款已确认，{automatic ? '系统将自动交付领取资料至订单页，并同步发送至' : gmail ? '系统将自动发送账号资料及使用说明至' : <>工作人员将把{order.delivery?.kind === 'link' ? '领取链接' : deliveryLabel}与说明发送至</>} <strong>{order.customerEmail}</strong>。请留意收件箱与垃圾邮件。</> : '请通过下方支持入口联系工作人员，提供订单号及要开通的账号。处理结果会更新到本订单。'}</PaymentMessage>}
       {order.delivery?.value && <section className="membership-direct-delivery" aria-label="领取资料">
         <h3>商品已发货</h3>
-        <p>{claimUrl ? '专属领取链接' : '兑换 CDK'}</p>
+        <p>{claimUrl ? '专属领取链接' : deliveryLabel}</p>
         <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', userSelect: 'text' }}>{order.delivery.value}</pre>
         <div className="membership-delivery-actions">
           {claimUrl && <Button size="sm" nativeButton={false} render={<a href={claimUrl} target="_blank" rel="noopener noreferrer" />}>立即领取 <ExternalLink size={13} /></Button>}
-          <CopyButton variant="outline" value={order.delivery.value} label={claimUrl ? '复制领取链接' : '复制 CDK'} />
+          <CopyButton variant="outline" value={order.delivery.value} label={claimUrl ? '复制领取链接' : '复制' + deliveryLabel} />
         </div>
         <p style={{ whiteSpace: 'pre-line' }}>{order.delivery.instructions}</p>
         <p>{order.delivery.status === 'sent' ? '同一份资料已发送至' : '同一份资料正在同步发送至'} <strong>{order.customerEmail}</strong>。请妥善保管，勿转发他人。</p>

@@ -49,6 +49,10 @@ func Message(kind, plan, id, value, instructions, origin string, brands ...maile
 	template := "delivery-cdk"
 	if plan == "gmail-account" {
 		template = "delivery-gmail"
+	} else if plan == "elevenlabs-creator-3m" {
+		// A colon-joined credential: not a claim link, and nothing like a
+		// Duolingo redemption code, so it gets its own account-details mail.
+		template = "delivery-elevenlabs"
 	} else if kind == "link" {
 		template = "delivery-link"
 	} else if link != "" {

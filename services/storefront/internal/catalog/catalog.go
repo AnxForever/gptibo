@@ -11,7 +11,7 @@ import (
 
 var ErrShopUnavailable = errors.New("shop unavailable")
 var slugPattern = regexp.MustCompile(`^(?:[A-Z0-9]{6}|[A-Z]{8}|[a-z0-9][a-z0-9-]{2,31})$`)
-var productOrder = []string{"chatgpt", "gemini", "duolingo", "x-premium", "gmail", "claude", "grok", "codex-sms"}
+var productOrder = []string{"chatgpt", "gemini", "duolingo", "elevenlabs", "x-premium", "gmail", "claude", "grok", "codex-sms"}
 
 func NormalizeProductOrder(saved []string) []string {
 	known := map[string]bool{}

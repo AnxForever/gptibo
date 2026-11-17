@@ -115,9 +115,10 @@ func TestCatalogIsolationAndImmediateUpdates(t *testing.T) {
 	handler := httpapi.Router(app, "test-worker", slog.New(slog.NewJSONHandler(&logs, nil)))
 	for _, tc := range []struct {
 		slug    string
+		plans   int
 		price   int64
 		contact string
-	}{{"", 16900, "main-contact"}, {"ABC123", 18000, "contact-a"}, {"DEF456", 19000, "contact-b"}} {
+	}{{"", 2, 16900, "main-contact"}, {"ABC123", 1, 18000, "contact-a"}, {"DEF456", 1, 19000, "contact-b"}} {
 		t.Run(tc.slug, func(t *testing.T) {
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, httptest.NewRequest("GET", "/api/catalog?partner="+tc.slug+"&secret=never-log-this", nil))
@@ -128,7 +129,7 @@ func TestCatalogIsolationAndImmediateUpdates(t *testing.T) {
 			if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
 				t.Fatal(err)
 			}
-			if len(got.Plans) != 1 || got.Plans[0].PriceCents != tc.price || got.SupportContacts.Wechat != tc.contact {
+			if len(got.Plans) != tc.plans || got.Plans[0].PriceCents != tc.price || got.SupportContacts.Wechat != tc.contact {
 				t.Fatal("cross-shop or incorrect catalogue")
 			}
 			if got.CheckoutEnabled || got.TestingEnabled || got.Plans[0].Enabled != 0 {
@@ -141,7 +142,7 @@ func TestCatalogIsolationAndImmediateUpdates(t *testing.T) {
 				t.Fatal("missing catalogue headers")
 			}
 			if tc.slug == "ABC123" {
-				if got.Announcement == nil || got.Announcement.Content != "Only A" || len(got.ProductOrder) != 8 || got.ProductOrder[0] != "x-premium" {
+				if got.Announcement == nil || got.Announcement.Content != "Only A" || len(got.ProductOrder) != 9 || got.ProductOrder[0] != "x-premium" {
 					t.Fatal("partner presentation settings lost")
 				}
 			} else if got.Announcement != nil {

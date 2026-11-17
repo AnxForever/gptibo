@@ -43,15 +43,15 @@ func TestCatalogCompletedOrdersByProduct(t *testing.T) {
 			t.Fatalf("shop %q counts = %v, want %v", slug, got.CompletedOrdersByProduct, want)
 		}
 	}
-	check("", map[string]int64{"chatgpt": 4, "gemini": 1, "gmail": 0})
-	check("ABC123", map[string]int64{"chatgpt": 4, "gemini": 1, "gmail": 0})
-	check("DEF456", map[string]int64{"chatgpt": 4, "gemini": 1, "gmail": 0})
+	check("", map[string]int64{"chatgpt": 4, "gemini": 1, "gmail": 0, "elevenlabs": 0})
+	check("ABC123", map[string]int64{"chatgpt": 4, "gemini": 1, "gmail": 0, "elevenlabs": 0})
+	check("DEF456", map[string]int64{"chatgpt": 4, "gemini": 1, "gmail": 0, "elevenlabs": 0})
 	// Completing an existing order is visible on the next catalog refresh.
 	execSQL(t, owner, `UPDATE orders SET status='success' WHERE id='processing'`)
-	check("ABC123", map[string]int64{"chatgpt": 5, "gemini": 1, "gmail": 0})
+	check("ABC123", map[string]int64{"chatgpt": 5, "gemini": 1, "gmail": 0, "elevenlabs": 0})
 	execSQL(t, owner, `UPDATE orders SET refunded_cents=10000 WHERE id='a-pro';
  INSERT INTO partner_order_versions(partner_id,hidden_product_ids) VALUES('a','["gemini"]')`)
-	check("ABC123", map[string]int64{"chatgpt": 4, "gmail": 0})
+	check("ABC123", map[string]int64{"chatgpt": 4, "gmail": 0, "elevenlabs": 0})
 }
 
 func TestCatalogGlobalCountCacheKeepsShopSettingsFresh(t *testing.T) {
@@ -79,6 +79,7 @@ func TestCatalogGlobalCountCacheKeepsShopSettingsFresh(t *testing.T) {
 	}
 	execSQL(t, owner, `INSERT INTO partner_order_versions(partner_id,hidden_product_ids) VALUES('a','["chatgpt"]')`)
 	hidden, err := svc.Read(context.Background(), "ABC123")
+	// This shop only has a price row for plus, so hiding chatgpt leaves nothing.
 	if err != nil || len(hidden.Plans) != 0 || len(hidden.CompletedOrdersByProduct) != 0 {
 		t.Fatal("cached counts bypassed shop visibility")
 	}
@@ -99,7 +100,7 @@ func TestCatalogCountFailureDoesNotDisableCheckout(t *testing.T) {
 	execSQL(t, owner, "REVOKE SELECT ON orders FROM "+pgx.Identifier{role}.Sanitize())
 	svc := catalog.Service{Store: app, CompletedOrders: catalog.NewCompletedOrderCache(app), Availability: func(_ context.Context, plans []catalog.Plan) []catalog.Plan { return plans }}
 	got, err := svc.Read(context.Background(), "")
-	if err != nil || len(got.Plans) != 1 || !got.CheckoutEnabled || got.CompletedOrdersByProduct != nil {
+	if err != nil || len(got.Plans) != 2 || !got.CheckoutEnabled || got.CompletedOrdersByProduct != nil {
 		t.Fatalf("statistics failure broke catalog or fabricated counts: %+v %v", got, err)
 	}
 }

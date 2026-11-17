@@ -2,6 +2,7 @@ export const STOREFRONT_PRODUCTS = [
   { id: 'chatgpt', name: 'ChatGPT' },
   { id: 'gemini', name: 'Gemini Pro' },
   { id: 'duolingo', name: '多邻国' },
+  { id: 'elevenlabs', name: 'ElevenLabs' },
   { id: 'x-premium', name: 'X Premium' },
   { id: 'gmail', name: 'Gmail 账号' },
   { id: 'claude', name: 'Claude', upcoming: true },

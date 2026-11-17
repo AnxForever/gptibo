@@ -108,7 +108,7 @@ export function PurchaseFlow({ couponAvailable = false, shopSlug, notice, onClos
   const current = emailMode || !order ? draft : order
   const plan = ORDER_PLANS.find(p => p.id === current.plan)!
   const emailProductInfo = emailProduct(current.plan)
-  const automaticDelivery = order?.delivery?.automatic || emailMode && ['gemini-pro-18m', 'duolingo-12m'].includes(current.plan)
+  const automaticDelivery = order?.delivery?.automatic || emailMode && ['gemini-pro-18m', 'duolingo-12m', 'elevenlabs-creator-3m'].includes(current.plan)
   const xgift = plan.productId === 'x-premium'
   const sms = plan.productId === 'codex-sms'
   const manual = !emailMode && order?.manualFulfillment === true

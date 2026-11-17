@@ -170,7 +170,7 @@ func (s Service) sendReminder(ctx context.Context, row map[string]any, lease str
 	return tag.RowsAffected() == 1, nil
 }
 func (s Service) PreviewMembership(ctx context.Context, plan, key string) (map[string]any, error) {
-	if (plan != "duolingo-12m" && plan != "gemini-pro-18m") || !security.ValidID(key) {
+	if (plan != "duolingo-12m" && plan != "gemini-pro-18m" && plan != "elevenlabs-creator-3m") || !security.ValidID(key) {
 		return nil, fault.New(400, "预览套餐或请求编号无效。")
 	}
 	if s.Sender == nil || s.AdminEmail == "" {
@@ -187,6 +187,8 @@ func (s Service) PreviewMembership(ctx context.Context, plan, key string) (map[s
 	value := "https://example.com/claim/gemini-preview"
 	if plan == "duolingo-12m" {
 		value = "https://www.duolingo.com/claim/super?code=PREVIEW-ONLY-NOT-A-REAL-CODE"
+	} else if plan == "elevenlabs-creator-3m" {
+		value = "preview@example.test:PREVIEW-ONLY-PASSWORD:DEMO2FAKEY:https://example.test/verify/preview"
 	}
 	m, e := Message(orders.EmailKind(plan), plan, "YMX-PREVIEW", value, instructions, s.Origin)
 	if e != nil {

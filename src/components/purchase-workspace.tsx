@@ -5,6 +5,7 @@ import { Button } from './ui/button'
 import { RadioGroup, RadioGroupItem } from './ui/radio-group'
 import { ProductMark } from './brand'
 import type { PRODUCTS, productPlans } from '@/lib/products'
+import { EMAIL_PRODUCT_IDS } from '../../shared/email-products'
 import type { PlanId } from '@/lib/demo-orders'
 import type { useStore } from '@/lib/use-store'
 
@@ -18,7 +19,7 @@ type Props = {
 export function PurchaseWorkspace({ product, plans, plan, selected, store, setSelected, beginPurchase, help, onGuide }: Props) {
   const isXGift = product.id === 'x-premium'
   const isGmail = product.id === 'gmail'
-  const isEmail = product.id === 'gemini' || product.id === 'duolingo' || isGmail
+  const isEmail = EMAIL_PRODUCT_IDS.has(product.id)
   const purchaseNote = store.catalog?.find(p => p.id === plan.id)?.purchase_note
   const isSms = product.id === 'codex-sms'
   return (<section className="purchase-workspace page-width reveal-in delay-1" aria-label={product.name + ' 套餐选择'} id="subscriptions">
@@ -26,7 +27,7 @@ export function PurchaseWorkspace({ product, plans, plan, selected, store, setSe
             <div className="product-topline"><span className="section-kicker">01 / 选择套餐</span><span className="availability"><span />{store.checkoutEnabled && plan.enabled ? '可购买' : '待开放'}</span></div>
             <div className="product-heading"><ProductMark productId={product.id} /><div><h2>{product.name}</h2><p>{product.tagline}</p></div><Badge variant="outline" className="personal-badge"><UserRound size={12} />{product.badge}</Badge></div>
             <div className="product-pitch"><h3 key={selected} className="state-enter">{plan.subtitle}</h3><p>{plan.renewalOnly ? '本套餐仅支持已有订阅续费，暂不支持新开。' : product.pitch}</p></div>
-            {isEmail && !isGmail && <MembershipScene productId={product.id as 'gemini' | 'duolingo'} />}
+            {isEmail && !isGmail && (product.id === 'gemini' || product.id === 'duolingo') && <MembershipScene productId={product.id} />}
             <div className="plan-label"><span>选择适合你的计划</span><span>{isXGift ? '一次购买' : isEmail ? '一次购买 · ' + product.quantity : isSms ? '按次购买' : '按月订阅'}</span></div>
             <RadioGroup value={plan.id} onValueChange={v => setSelected(v as PlanId)} className={`plan-options ${plans.length === 1 ? 'single-plan' : 'subscription-plans'}`} aria-label="商品套餐">
               {plans.map(p => <label key={p.id} className={`plan-option ${plan.id === p.id ? 'is-selected' : ''}`}><div className="plan-option-top"><RadioGroupItem value={p.id} disabled={!p.enabled} id={`plan-${p.id}`} aria-label={`${product.name} ${p.name}${p.renewalOnly ? '，仅续费' : ''}`} /><span>{p.name}</span>{p.renewalOnly ? <Badge variant="outline" className="renewal-badge">仅续费</Badge> : p.id === 'plus' && <span className="recommend-label">日常之选</span>}</div><p>{p.enabled ? p.description : '暂停售卖'}</p><div className="plan-price"><span>¥</span><strong>{p.price}</strong><span>/ {product.unit}</span></div></label>)}

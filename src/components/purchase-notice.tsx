@@ -20,6 +20,10 @@ function fulfillmentNotice(plan: PlanId) {
       emphasis: '账号资料邮件交付，请确保邮箱能正常收件。',
       steps: ['付款后查收账号资料与说明，同时检查垃圾邮件。', '购买当天完成首次登录，留意登录要求与质保范围。'],
     }
+    case 'elevenlabs': return {
+      emphasis: '账号资料邮件交付，请确保邮箱能正常收件。',
+      steps: ['付款后查收四段资料：邮箱、密码、2FA 密钥与邮箱验证链接。', '首次登录后立即修改密码，并妥善保管，不要转发给他人。'],
+    }
     case 'x-premium': return {
       emphasis: '付款前请核对 X 用户名与订阅周期。',
       steps: ['填写并验证用户名，无需提供密码或 Cookie。', '付款后在订单查看进度，完成后前往 X 确认会员。'],

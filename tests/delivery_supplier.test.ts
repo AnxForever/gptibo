@@ -14,7 +14,7 @@ async function setup(t: Context, plan: keyof typeof mappings = 'gemini-pro-18m',
   const s = await customerFixture(); t.after(() => s.db.close())
   Object.assign(s.env, { ORDER_TESTING_ENABLED: 'false', EMAIL_PRODUCTS_ENABLED: 'true', RESEND_API_KEY: 'mock-mail-key', RESEND_FROM: 'Anx <delivery@example.test>', PAYMENT_NOTIFY_ORIGIN: 'https://shop.example.invalid', ALIPAY_APP_ID: '2026000000000000', ALIPAY_SELLER_ID: '2088000000000000', ALIPAY_APP_PRIVATE_KEY: keys.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(), ALIPAY_PUBLIC_KEY: keys.publicKey.export({ type: 'spki', format: 'pem' }).toString(), DELIVERY_SUPPLIER_API_KEY: 'mock-delivery_supplier-key', DELIVERY_SUPPLIER_CHECKOUT_ENABLED: 'true', DELIVERY_SUPPLIER_CNY_PER_USD: '6.7' })
   const value = plan === 'gemini-pro-18m' ? 'https://claim.example.test/PRIVATE-CLAIM' : 'PRIVATE-CDK'
-  const state = { posts: [] as { key: string | null; body: string }[], mails: [] as { key: string | null; body: string }[], losePost: false, loseMail: false, pending: false, refund: false, stock: 10, price: mappings[plan].maxUsdCents / 100, balance: 1.9, mismatch: false, actual: mappings[plan].maxUsdCents / 100, netDelta: 0, refundDelta: 0, badValue: false, duringPost: undefined as (() => Promise<void>) | undefined, ...amounts }
+  const state = { posts: [] as { key: string | null; body: string }[], mails: [] as { key: string | null; body: string }[], losePost: false, loseMail: false, pending: false, refund: false, stock: 10, price: mappings[plan].maxUsdCents / 100, balance: 1.9, mismatch: false, actual: mappings[plan].maxUsdCents / 100, netDelta: 0, refundDelta: 0, badValue: false, nullNet: false, duringPost: undefined as (() => Promise<void>) | undefined, ...amounts }
   t.mock.method(globalThis, 'fetch', async (url: string | URL | Request, options: RequestInit) => {
     const headers = new Headers(options.headers)
     if (String(url) === 'https://api.resend.com/emails') {
@@ -36,6 +36,7 @@ async function setup(t: Context, plan: keyof typeof mappings = 'gemini-pro-18m',
       return Response.json({ order_id: 'API_TEST', order_status: 'pending' }, { status: 503 })
     }
     assert.ok(String(url).endsWith('/order/API_TEST'))
+    if (state.nullNet) return Response.json({ success: true, order: { order_id: state.mismatch ? 'API_OTHER' : 'API_TEST', service: 'Membership', service_id: null, quantity: 1, requested_quantity: 1, amount: state.actual, status: 'success', order_status: 'success', stage: 'complete', delivered_quantity: 1, charged_amount: null, refunded_amount: state.refundDelta, net_charged_amount: null, partial_delivery: false, delivered_products: [state.badValue ? 'javascript:alert(1)' : value], retry_after_seconds: null } })
     return Response.json({ success: true, order: { order_id: state.mismatch ? 'API_OTHER' : 'API_TEST', service_id: mappings[plan].id, order_status: state.refund ? 'refunded' : state.pending ? 'pending' : 'success', requested_quantity: 1, delivered_quantity: state.refund || state.pending ? 0 : 1, charged_amount: state.actual, refunded_amount: (state.refund ? state.actual : 0) + state.refundDelta, net_charged_amount: (state.refund ? 0 : state.actual) + state.netDelta, partial_delivery: false, delivered_products: state.pending || state.refund ? [] : [state.badValue ? 'javascript:alert(1)' : value], retry_after_seconds: 120 } })
   })
   const buyer = (await s.request('/api/orders/client', {})).headers.get('set-cookie')!.split(';')[0]
@@ -84,6 +85,25 @@ test('Gemini 0.445 USDT quote and receipt deliver once and book ¥2.98 from the 
   const purchase = (await (await s.request(`/api/admin/orders/${s.order.id}/delivery_supplier`, undefined, s.admin)).json()).purchase
   assert.equal(purchase.actualUsdMicros, 445000)
   assert.equal(s.db.prepare('SELECT cost_cents FROM accounting_candidates WHERE order_id=?').get(s.order.id)!.cost_cents, 298)
+})
+
+test('a null net charge with a zero refund still settles the exact amount', async t => {
+  // One live upstream answers with charged_amount/net_charged_amount null and
+  // the short aliases populated. The zero refund settles the net charge as the
+  // amount, so the order delivers instead of parking for manual review.
+  const s = await setup(t, 'gemini-pro-18m', { price: 0.445, actual: 0.445, balance: 1.9 })
+  s.state.nullNet = true
+  await s.pay(); await reconcileDeliverySupplier(s.env)
+  assert.equal((await s.view()).status, 'success'); assert.equal((await s.view()).delivery.value, s.value)
+  assert.equal(s.state.posts.length, 1); assert.equal(s.state.mails.length, 1)
+  const row = s.db.prepare('SELECT actual_usd_micros,actual_cost_cents FROM delivery_supplier_orders WHERE order_id=?').get(s.order.id)!
+  assert.equal(row.actual_usd_micros, 445000); assert.equal(row.actual_cost_cents, 298)
+  // A partial refund is never guessed: the same shape with a non-zero refund stays parked.
+  const p = await setup(t, 'gemini-pro-18m', { price: 0.445, actual: 0.445 })
+  p.state.nullNet = true; p.state.refundDelta = 0.445
+  await p.pay(); await reconcileDeliverySupplier(p.env)
+  assert.equal((await p.view()).delivery.value, undefined)
+  assert.equal(p.state.mails.length, 0)
 })
 
 test('sub-cent price, balance, net and refund discrepancies cannot bypass procurement checks', async t => {

@@ -100,7 +100,7 @@ test('sanitized deploy config keeps public worker entrypoints closed, and static
   // preview URLs should expose an unconfigured copy.
   assert.equal(config.workers_dev, false)
   assert.equal(config.preview_urls, false)
-  assert.match(readFileSync(new URL('../public/_headers', import.meta.url), 'utf8'), /Strict-Transport-Security: max-age=15552000/)
+  assert.match(readFileSync(new URL('../public/_headers', import.meta.url), 'utf8'), /Strict-Transport-Security: max-age=31536000; includeSubDomains/)
 })
 
 test('verification email redirects cannot forward a login code or request body to another service', async t => {

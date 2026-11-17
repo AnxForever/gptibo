@@ -312,6 +312,15 @@ func normalize(v any) {
 				zero := json.Number("0")
 				x.Refunded, x.Net = &zero, x.Charged
 			}
+		} else if x.Net == nil && x.Charged != nil {
+			// Some upstreams report the refund counter next to a null
+			// net_charged_amount. The retained amount is the definitional
+			// charge minus refund, so a reported zero refund settles the net
+			// charge as the charge itself. Any other refund stays unset: the
+			// caller keeps the order pending rather than guess.
+			if refunded, e := usdMicros(x.Refunded); e == nil && refunded == 0 {
+				x.Net = x.Charged
+			}
 		}
 	case []NYProduct:
 		for i := range x {

@@ -49,6 +49,42 @@ func TestDocumentedOrderShapeKeepsExtendedFieldsAuthoritative(t *testing.T) {
 	}
 }
 
+// One live upstream answers with a null charged/net pair while still reporting
+// the refund counter and the short aliases. A zero refund then settles the net
+// charge as the amount; the order must not be parked for manual review.
+const nyStoreOrder = `{"success":true,"order":{"order_id":"ORD_34730","service":"Creator 3M ( Read Terms )","service_id":null,"quantity":1,"requested_quantity":1,"amount":4.5,"status":"success","delivered_products":["a@example.test:secret:2FAKEY:https://mail.example.test/inbox#token"],"order_status":"success","stage":"complete","delivered_quantity":1,"charged_amount":null,"refunded_amount":0.0,"net_charged_amount":null,"partial_delivery":false,"retry_after_seconds":null,"next_action":"none"}}`
+
+func TestNullNetChargeSettlesFromZeroRefund(t *testing.T) {
+	v := decodeDocumented(t, nyStoreOrder)
+	if v.Minimal {
+		t.Fatal("reported counters must keep the strict extended checks")
+	}
+	charged, e1 := usdMicros(v.Charged)
+	refunded, e2 := usdMicros(v.Refunded)
+	net, e3 := usdMicros(v.Net)
+	if e1 != nil || e2 != nil || e3 != nil || charged != 4500000 || refunded != 0 || net != charged {
+		t.Fatal("null net charge not settled from the zero refund", charged, refunded, net, e1, e2, e3)
+	}
+	if v.Delivered == nil || *v.Delivered != 1 || v.Partial == nil || *v.Partial || len(v.Values) != 1 {
+		t.Fatalf("reported quantities changed: %+v", v)
+	}
+}
+
+func TestNullNetChargeNeverGuessesARefund(t *testing.T) {
+	for _, refunded := range []string{"null", "0.5", "1"} {
+		raw := `{"order":{"order_id":"ORD-5","requested_quantity":1,"order_status":"success","amount":4.5,"delivered_quantity":1,"refunded_amount":` + refunded + `,"net_charged_amount":null,"partial_delivery":false,"delivered_products":["X"]}}`
+		v := decodeDocumented(t, raw)
+		if v.Net != nil {
+			t.Fatalf("derived a net charge from refund %s", refunded)
+		}
+	}
+	// A null charge with no alias leaves nothing to settle either.
+	raw := `{"order":{"order_id":"ORD-6","requested_quantity":1,"order_status":"success","charged_amount":null,"refunded_amount":0,"net_charged_amount":null,"delivered_quantity":1,"partial_delivery":false,"delivered_products":["X"]}}`
+	if v := decodeDocumented(t, raw); v.Net != nil {
+		t.Fatal("derived a net charge without any reported charge")
+	}
+}
+
 func TestDocumentedOrderShapeDoesNotAssumeSuccess(t *testing.T) {
 	for _, status := range []string{"pending", "refunded", "failed", "cancelled"} {
 		raw := `{"order":{"order_id":"ORD-3","service_id":"S_03","quantity":1,"amount":0.5,"status":"` + status + `","delivered_products":[]}}`

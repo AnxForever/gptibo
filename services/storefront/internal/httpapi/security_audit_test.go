@@ -17,14 +17,14 @@ func TestCrossSiteIgnoresVisitorBorneRequests(t *testing.T) {
 		{"fetch metadata same-site", map[string]string{"Sec-Fetch-Site": "same-site"}, false},
 		{"fetch metadata none", map[string]string{"Sec-Fetch-Site": "none"}, false},
 		{"foreign origin", map[string]string{"Origin": "https://evil.example"}, true},
-		{"matching origin", map[string]string{"Origin": "https://anxforever.shop"}, false},
+		{"matching origin", map[string]string{"Origin": "https://shop.example.invalid"}, false},
 		{"foreign referer", map[string]string{"Referer": "https://evil.example/page"}, true},
-		{"matching referer", map[string]string{"Referer": "https://anxforever.shop/orders"}, false},
+		{"matching referer", map[string]string{"Referer": "https://shop.example.invalid/orders"}, false},
 		{"unparseable referer", map[string]string{"Referer": "::"}, true},
 		{"no origin evidence counts", nil, false},
 	}
 	for _, c := range cases {
-		r := httptest.NewRequest(http.MethodGet, "https://anxforever.shop/api/orders/x", nil)
+		r := httptest.NewRequest(http.MethodGet, "https://shop.example.invalid/api/orders/x", nil)
 		for k, v := range c.headers {
 			r.Header.Set(k, v)
 		}

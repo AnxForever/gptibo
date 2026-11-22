@@ -84,11 +84,14 @@ var canbosoMappings = map[string]struct {
 
 // supply is the catalogue row that decides who fulfils a plan and at what cost.
 // Account names one buyer key for multi-key channels; "" is the default key.
+// DeliveryKind is the format the plan ships in; a plan with a format but no
+// supplier is fulfilled by staff, so it never needs a procurement table.
 type supply struct {
-	Supplier string
-	Product  string
-	Ceiling  int64
-	Account  string
+	Supplier     string
+	Product      string
+	Ceiling      int64
+	Account      string
+	DeliveryKind string
 }
 
 type supplyCache struct {
@@ -152,6 +155,18 @@ func pickKind(sp supply, legacy string, canboso, delivery, account bool) string 
 		}
 	}
 	return legacy
+}
+
+// resolveKind adds the staff-delivered case: a catalogue row that declares a
+// delivery format but names no supplier is fulfilled by hand, so it is
+// purchasable whenever the email channel is on. A row that names a supplier
+// belongs to that channel even when it is currently unconfigured — it must
+// never silently fall back to manual delivery.
+func resolveKind(sp supply, legacy string, canboso, delivery, account bool) string {
+	if kind := pickKind(sp, legacy, canboso, delivery, account); kind != "" || sp.Supplier != "" || sp.DeliveryKind == "" {
+		return kind
+	}
+	return "manual"
 }
 
 // Prepare initialises the catalogue cache; call once while constructing.
@@ -223,7 +238,7 @@ func (s *Service) supplies(ctx context.Context) (map[string]supply, error) {
 }
 
 func (s *Service) loadSupplies(ctx context.Context) (map[string]supply, error) {
-	rows, e := s.Store.DB.Query(ctx, `SELECT id,supplier,supplier_product,COALESCE(supplier_ceiling_cents,0),supplier_account FROM catalog_plans`)
+	rows, e := s.Store.DB.Query(ctx, `SELECT id,supplier,supplier_product,COALESCE(supplier_ceiling_cents,0),supplier_account,delivery_kind FROM catalog_plans`)
 	if e != nil {
 		return nil, e
 	}
@@ -232,7 +247,7 @@ func (s *Service) loadSupplies(ctx context.Context) (map[string]supply, error) {
 	for rows.Next() {
 		var id string
 		var sp supply
-		if e = rows.Scan(&id, &sp.Supplier, &sp.Product, &sp.Ceiling, &sp.Account); e != nil {
+		if e = rows.Scan(&id, &sp.Supplier, &sp.Product, &sp.Ceiling, &sp.Account, &sp.DeliveryKind); e != nil {
 			return nil, e
 		}
 		out[id] = sp
@@ -252,7 +267,7 @@ func (s *Service) supplyOf(ctx context.Context, plan string) supply {
 
 // kind resolves a plan against the catalogue and the channels actually configured.
 func (s *Service) kind(ctx context.Context, plan string) string {
-	return pickKind(s.supplyOf(ctx, plan), Kind(plan), s.canbosoReady(), s.DeliverySupplier != nil, s.AccountSupplier != nil)
+	return resolveKind(s.supplyOf(ctx, plan), Kind(plan), s.canbosoReady(), s.DeliverySupplier != nil, s.AccountSupplier != nil)
 }
 
 // Supports reports whether automatic procurement owns the plan at all. The
@@ -285,6 +300,10 @@ func (s *Service) enabledKind(kind string) bool {
 		return s.NYEnabled && s.DeliverySupplier != nil && s.FX > 0 && s.FX <= 100
 	case "canboso":
 		return s.CanbosoEnabled && s.canbosoReady() && s.CanbosoFX > 0 && s.CanbosoFX <= 100
+	case "manual":
+		// Staff paste the link or code in the workspace; the common gates above
+		// already cover payment and mail, so no upstream channel is required.
+		return true
 	}
 	return false
 }
@@ -370,6 +389,11 @@ func quoteError(e error) error {
 	return e
 }
 func (s *Service) Snapshot(ctx context.Context, tx pgx.Tx, o orders.Order, _ orders.CreateInput) error {
+	// Staff-delivered plans keep no upstream row; the workspace saves the link
+	// or code after payment, exactly like a manually sent redemption mail.
+	if s.kind(ctx, o.Plan) == "manual" {
+		return nil
+	}
 	supplyCost, e := orders.SupplyCost(ctx, tx, o.ID)
 	if e != nil {
 		return e
@@ -416,7 +440,7 @@ func (s *Service) Availability(ctx context.Context, plans []catalog.Plan) []cata
 	canboso, delivery, account := s.canbosoReady(), s.DeliverySupplier != nil, s.AccountSupplier != nil
 	for i := range plans {
 		p := &plans[i]
-		kind := pickKind(m[p.ID], Kind(p.ID), canboso, delivery, account)
+		kind := resolveKind(m[p.ID], Kind(p.ID), canboso, delivery, account)
 		if kind == "" {
 			continue
 		}
@@ -466,7 +490,7 @@ func (s *Service) Fulfill(ctx context.Context, id string) error {
 	if kind == "" {
 		kind = s.kind(ctx, o.Plan)
 	}
-	if kind == "" {
+	if kind == "" || kind == "manual" {
 		return nil
 	}
 	tx, e := s.Store.DB.Begin(ctx)
@@ -654,6 +678,12 @@ func (s *Service) prepareDelivery(ctx context.Context, kind string, p Purchase) 
 		next := o
 		next.Status = "processing"
 		if _, e = orders.Change(ctx, tx, o, next, "system", kind+"-delivered", "采购已核验，准备邮件发货"); e != nil {
+			return e
+		}
+		// One verified upstream purchase consumes one unit of the plan's advertised
+		// stock. The email_deliveries guard above keeps a replayed settle from
+		// counting the same order twice; a manual restock resets the number.
+		if _, e = tx.Exec(ctx, `UPDATE catalog_plans SET stock=stock-1 WHERE id=$1 AND stock>0`, o.Plan); e != nil {
 			return e
 		}
 	}

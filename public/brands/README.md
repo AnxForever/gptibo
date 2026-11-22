@@ -1,6 +1,6 @@
 # Brand marks
 
-OpenAI, Codex, Claude and Grok SVG marks are sourced from [Lobe Icons](https://github.com/lobehub/lobe-icons), package `@lobehub/icons-static-svg`, retrieved 2026-09-26. The original SVG paths are retained and rendered as CSS masks to support light/dark themes. The upstream MIT license is included in this directory. Brand names and marks belong to their respective owners.
+OpenAI, Codex, Claude, Grok and ElevenLabs SVG marks are sourced from [Lobe Icons](https://github.com/lobehub/lobe-icons), package `@lobehub/icons-static-svg`, retrieved 2026-09-26 (ElevenLabs on 2026-11-18, version 1.103.0). The original SVG paths are retained and rendered as CSS masks to support light/dark themes. The upstream MIT license is included in this directory. Brand names and marks belong to their respective owners.
 
 
 ## Duolingo Duo home animation

@@ -7,6 +7,9 @@ import RechargeReminderEmail from '../emails/recharge-reminder.tsx'
 import MembershipDeliveryEmail from '../emails/membership-delivery.tsx'
 import GmailDeliveryEmail from '../emails/gmail-delivery.tsx'
 import ElevenlabsDeliveryEmail from '../emails/elevenlabs-delivery.tsx'
+import GeminiPlusDeliveryEmail from '../emails/gemini-plus-delivery.tsx'
+import AccountDeliveryEmail from '../emails/account-delivery.tsx'
+import DevinDeliveryEmail from '../emails/devin-delivery.tsx'
 import PartnerOrderCompletedEmail from '../emails/partner-order-completed.tsx'
 import { reminderSubject } from '../emails/reminder-copy.ts'
 
@@ -40,7 +43,16 @@ templates['delivery-gmail'] = { subject: 'Gmail 账号 · 账号资料已发货'
 if (preview) await writeFile(new URL('../artifacts/emails/delivery-gmail.html', import.meta.url), platformEmail(gmailHtml).replaceAll('__RECHARGE_DELIVERY_ORDER__', 'YMX-PREVIEW').replaceAll('__RECHARGE_DELIVERY_VALUE__', 'demo@example.test----DEMO-PASSWORD----DEMO-2FA').replaceAll('__RECHARGE_DELIVERY_INSTRUCTIONS__', '此为测试预览，账号资料无效。请通过原订单联系支持。'))
 const elevenlabsHtml = await render(createElement(ElevenlabsDeliveryEmail))
 templates['delivery-elevenlabs'] = { subject: 'ElevenLabs Creator 3 个月 · 账号资料已发货', html: elevenlabsHtml, text: toPlainText(elevenlabsHtml) }
-if (preview) await writeFile(new URL('../artifacts/emails/delivery-elevenlabs.html', import.meta.url), platformEmail(elevenlabsHtml).replaceAll('__RECHARGE_DELIVERY_ORDER__', 'YMX-PREVIEW').replaceAll('__RECHARGE_DELIVERY_VALUE__', 'demo@example.test:DEMO-PASSWORD:DEMO2FAKEY:https://example.test/verify/abc').replaceAll('__RECHARGE_DELIVERY_INSTRUCTIONS__', '此为测试预览，账号资料无效。请通过原订单联系支持。'))
+if (preview) await writeFile(new URL('../artifacts/emails/delivery-elevenlabs.html', import.meta.url), platformEmail(elevenlabsHtml).replaceAll('__RECHARGE_DELIVERY_ORDER__', 'YMX-PREVIEW').replaceAll('__RECHARGE_DELIVERY_VALUE__', 'demo@example.test:DEMO-MAILBOX-PASSWORD:DEMO-ACCOUNT-PASSWORD:https://example.test/verify/abc').replaceAll('__RECHARGE_DELIVERY_INSTRUCTIONS__', '此为测试预览，账号资料无效。请通过原订单联系支持。'))
+const geminiPlusHtml = await render(createElement(GeminiPlusDeliveryEmail))
+templates['delivery-gemini-plus'] = { subject: 'Gemini Plus 6 个月 · 账号资料已发货', html: geminiPlusHtml, text: toPlainText(geminiPlusHtml) }
+if (preview) await writeFile(new URL('../artifacts/emails/delivery-gemini-plus.html', import.meta.url), platformEmail(geminiPlusHtml).replaceAll('__RECHARGE_DELIVERY_ORDER__', 'YMX-PREVIEW').replaceAll('__RECHARGE_DELIVERY_VALUE__', 'demo@example.test:DEMO-MAILBOX-PASSWORD:DEMO-ACCOUNT-PASSWORD:https://example.test/verify/abc').replaceAll('__RECHARGE_DELIVERY_INSTRUCTIONS__', '此为测试预览，账号资料无效。请通过原订单联系支持。'))
+const accountHtml = await render(createElement(AccountDeliveryEmail))
+templates['delivery-account'] = { subject: '账号资料已发货', html: accountHtml, text: toPlainText(accountHtml) }
+if (preview) await writeFile(new URL('../artifacts/emails/delivery-account.html', import.meta.url), platformEmail(accountHtml).replaceAll('__RECHARGE_DELIVERY_ORDER__', 'YMX-PREVIEW').replaceAll('__RECHARGE_DELIVERY_VALUE__', 'demo@example.test:DEMO-PASSWORD').replaceAll('__RECHARGE_DELIVERY_INSTRUCTIONS__', '此为测试预览，账号资料无效。请通过原订单联系支持。'))
+const devinHtml = await render(createElement(DevinDeliveryEmail))
+templates['delivery-devin'] = { subject: 'Devin Max 1 个月 · 领取链接已发货', html: devinHtml, text: toPlainText(devinHtml) }
+if (preview) await writeFile(new URL('../artifacts/emails/delivery-devin.html', import.meta.url), platformEmail(devinHtml).replaceAll('__RECHARGE_DELIVERY_ORDER__', 'YMX-PREVIEW').replaceAll('__RECHARGE_DELIVERY_URL__', 'https://example.com/claim/preview').replaceAll('__RECHARGE_DELIVERY_VALUE__', 'https://example.com/claim/preview').replaceAll('__RECHARGE_DELIVERY_INSTRUCTIONS__', '此为测试预览，请用你自己的 Devin 账号打开链接完成开通。'))
 for (const { id, kind, product, subject } of [
   { id: 'delivery-link', kind: 'link', product: 'gemini', subject: 'Gemini Pro 18 个月会员 · 领取链接已发货' },
   { id: 'delivery-cdk', kind: 'cdk', product: 'duolingo', subject: '多邻国 1 年会员 · 兑换 CDK 已发货' },

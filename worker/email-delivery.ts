@@ -34,12 +34,12 @@ export function validateValue(kind: 'link' | 'cdk', input: unknown) {
 export async function membershipDeliveryPreview(request: Request, env: Env) {
   if (request.method !== 'POST') throw new ApiError('请通过 POST 发送模板预览。', 405)
   const data = await body(request)
-  if (data.plan !== 'duolingo-12m' && data.plan !== 'gemini-pro-18m' && data.plan !== 'elevenlabs-creator-3m') throw new ApiError('请选择多邻国、Gemini 或 ElevenLabs 邮件模板。')
+  if (data.plan !== 'duolingo-12m' && data.plan !== 'gemini-pro-18m' && data.plan !== 'elevenlabs-creator-3m' && data.plan !== 'devin-max-1m') throw new ApiError('请选择多邻国、Gemini、ElevenLabs 或 Devin 邮件模板。')
   if (typeof data.key !== 'string' || !/^[a-f0-9-]{36}$/.test(data.key)) throw new ApiError('模板预览请求编号无效。')
   if (!env.RESEND_API_KEY || !env.RESEND_FROM) throw new ApiError('邮件服务暂不可用。', 503)
   const plan = await env.INTEREST_DB.prepare('SELECT delivery_instructions FROM catalog_plans WHERE id=?').bind(data.plan).first<{ delivery_instructions: string }>()
   if (!plan) throw new ApiError('未找到套餐。', 404)
-  const value = data.plan === 'duolingo-12m' ? 'https://www.duolingo.com/claim/super?code=PREVIEW-ONLY-NOT-A-REAL-CODE' : data.plan === 'elevenlabs-creator-3m' ? 'preview@example.test:PREVIEW-ONLY-PASSWORD:DEMO2FAKEY:https://example.test/verify/preview' : 'https://example.com/claim/gemini-preview'
+  const value = data.plan === 'duolingo-12m' ? 'https://www.duolingo.com/claim/super?code=PREVIEW-ONLY-NOT-A-REAL-CODE' : data.plan === 'elevenlabs-creator-3m' ? 'preview@example.test:PREVIEW-MAILBOX-PASSWORD:PREVIEW-ACCOUNT-PASSWORD:https://example.test/verify/preview' : data.plan === 'devin-max-1m' ? 'https://example.test/claim/devin-preview' : 'https://example.com/claim/gemini-preview'
   const message = membershipDeliveryMessage(emailProduct(data.plan)!.kind, 'YMX-PREVIEW', value, plan.delivery_instructions, data.plan)
   try {
     const providerId = await sendMembershipPreviewEmail(env, adminLoginEmail(env), message, data.key)

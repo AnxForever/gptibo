@@ -11,9 +11,12 @@ export const PLANS = [
   { id: 'pro-20x', productId: 'chatgpt', name: 'Pro 10×', price: 1400, renewalOnly: false, subtitle: '更多额度，继续你的探索。', description: 'Pro 10× 档位，支持新开与续费', features: ['Pro 10× 订阅', '支持新开与续费', '订单进度可查'] },
   { id: 'pro-25x', productId: 'chatgpt', name: 'Pro 25×', price: 4500, renewalOnly: false, subtitle: '更高额度，继续你的探索。', description: 'Pro 25× 档位，支持新开与自动充值', features: ['Pro 25× 订阅', '支持新开 · 自动充值', '订单进度可查'] },
   { id: 'codex-sms-once', productId: 'codex-sms', name: '单次接码', price: 10, renewalOnly: false, subtitle: '一次接码，清楚明了。', description: '接收一次短信验证码', features: ['按次购买', '订单内查看验证码', '无需提交 Session'] },
-  { id: 'gemini-pro-18m', productId: 'gemini', name: '18 个月会员', price: 19.9, renewalOnly: false, subtitle: '让灵感，多一点时间。', description: '18 个月会员 · 领取链接邮件交付', features: ['18 个月会员', '邮件领取链接', '自动发货 · 订单页可领取'] },
+  { id: 'gemini-plus-6m', productId: 'gemini', name: '6 个月会员', price: 13.9, renewalOnly: false, subtitle: '让灵感，多一点时间。', description: '6 个月会员 · 账号资料邮件交付', features: ['6 个月会员', '账号资料邮件交付', '自动发货 · 订单页可查看'] },
   { id: 'duolingo-12m', productId: 'duolingo', name: '1 年会员', price: 19.9, renewalOnly: false, subtitle: '和 Duo 一起，把学习继续。', description: '1 年会员 · 兑换 CDK 邮件交付', features: ['1 年会员', '邮件兑换 CDK', '自动发货 · 订单页可领取'] },
-  { id: 'elevenlabs-creator-3m', productId: 'elevenlabs', name: 'Creator · 3 个月', price: 66.9, renewalOnly: false, subtitle: '把文字，变成声音。', description: 'Creator 会员 3 个月 · 账号资料邮件交付', features: ['Creator 会员 3 个月', '账号资料邮件交付', '自动发货 · 订单页可查看'] },
+  { id: 'elevenlabs-creator-3m', productId: 'elevenlabs', name: 'Creator · 3 个月', price: 59, renewalOnly: false, subtitle: '把文字，变成声音。', description: 'Creator 会员 3 个月 · 现成稳定账号，账号资料邮件交付', features: ['Creator 会员 3 个月 · 131K 积分/月', '现成稳定账号 · 邮件交付', '付款后 30 分钟内改密 · 不支持质保'] },
+  { id: 'muse-account', productId: 'muse', name: '高级账号', price: 15.9, renewalOnly: false, subtitle: '把灵感，变成作品。', description: 'Muse AI 高级账号 · 账号资料邮件交付', features: ['现成高级账号', '账号资料邮件交付', '付款后 30 分钟内改密 · 不支持质保'] },
+  { id: 'notion-business-3m', productId: 'notion', name: 'Business · 3 个月', price: 13.9, renewalOnly: false, subtitle: '三个月，把想法收好。', description: 'Notion Business 3 个月 · 开通资料邮件交付', features: ['Business 工作空间 3 个月', '开通资料邮件交付', '自动发货 · 订单页可查看'] },
+  { id: 'devin-max-1m', productId: 'devin', name: '1 个月', price: 240, renewalOnly: false, subtitle: '你的 AI 工程师，替你写代码。', description: 'Devin Max 1 个月 · 专属开通链接人工交付', features: ['Devin Max 会员 1 个月', '专属开通链接 · 人工发货', '仅 1 份 · 不支持售后质保'] },
   { id: 'gmail-account', productId: 'gmail', name: '美国长效白号 · 带 2FA', price: 18.8, renewalOnly: false, subtitle: '一个邮箱，让连接开始。', description: '个人 Gmail 白号 · 账号资料自动邮件交付', features: ['美国个人白号 · 带 2FA', '付款后自动邮件发货', '购买当天首次登录质保'] },
 ] as const
 // Retired plans remain readable without silently changing historical purchases.

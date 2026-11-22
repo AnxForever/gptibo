@@ -52,7 +52,7 @@ func TestDocumentedOrderShapeKeepsExtendedFieldsAuthoritative(t *testing.T) {
 // One live upstream answers with a null charged/net pair while still reporting
 // the refund counter and the short aliases. A zero refund then settles the net
 // charge as the amount; the order must not be parked for manual review.
-const nyStoreOrder = `{"success":true,"order":{"order_id":"ORD_34730","service":"Creator 3M ( Read Terms )","service_id":null,"quantity":1,"requested_quantity":1,"amount":4.5,"status":"success","delivered_products":["a@example.test:secret:2FAKEY:https://mail.example.test/inbox#token"],"order_status":"success","stage":"complete","delivered_quantity":1,"charged_amount":null,"refunded_amount":0.0,"net_charged_amount":null,"partial_delivery":false,"retry_after_seconds":null,"next_action":"none"}}`
+const nyStoreOrder = `{"success":true,"order":{"order_id":"ORD_34730","service":"Creator 3M ( Read Terms )","service_id":null,"quantity":1,"requested_quantity":1,"amount":4.5,"status":"success","delivered_products":["a@example.test:mailbox-pw:account-pw:https://mail.example.test/inbox#token"],"order_status":"success","stage":"complete","delivered_quantity":1,"charged_amount":null,"refunded_amount":0.0,"net_charged_amount":null,"partial_delivery":false,"retry_after_seconds":null,"next_action":"none"}}`
 
 func TestNullNetChargeSettlesFromZeroRefund(t *testing.T) {
 	v := decodeDocumented(t, nyStoreOrder)

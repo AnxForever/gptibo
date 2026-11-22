@@ -213,7 +213,9 @@ GATEWAYB_KEY_FILE=/run/integrations/gatewayb-key
 ```ini
 CANBOSO_ENABLED=true
 CANBOSO_CHECKOUT_ENABLED=true
-CANBOSO_API_BASE=https://canboso.com
+# 真实 origin 只存在部署主机上，仓库里用保留域名占位。
+# CANBOSO_ENABLED=true 时它必须显式配置，否则启动即报 invalid Canboso configuration。
+CANBOSO_API_BASE=https://canboso.example.invalid
 CANBOSO_KEY_FILE=/run/integrations/canboso-key
 CANBOSO_KEY_FILES=key1=/run/integrations/canboso-key-1,key4=/run/integrations/canboso-key-4
 CANBOSO_CNY_PER_USD=6.7

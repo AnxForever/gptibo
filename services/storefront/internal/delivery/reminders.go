@@ -170,14 +170,14 @@ func (s Service) sendReminder(ctx context.Context, row map[string]any, lease str
 	return tag.RowsAffected() == 1, nil
 }
 func (s Service) PreviewMembership(ctx context.Context, plan, key string) (map[string]any, error) {
-	if (plan != "duolingo-12m" && plan != "gemini-pro-18m" && plan != "elevenlabs-creator-3m") || !security.ValidID(key) {
+	if (plan != "duolingo-12m" && plan != "gemini-pro-18m" && plan != "gemini-plus-6m" && plan != "elevenlabs-creator-3m" && plan != "muse-account" && plan != "notion-business-3m" && plan != "plus" && plan != "devin-max-1m") || !security.ValidID(key) {
 		return nil, fault.New(400, "预览套餐或请求编号无效。")
 	}
 	if s.Sender == nil || s.AdminEmail == "" {
 		return nil, fault.New(503, "预览邮件未配置。")
 	}
-	var instructions string
-	e := s.Store.DB.QueryRow(ctx, `SELECT delivery_instructions FROM catalog_plans WHERE id=$1`, plan).Scan(&instructions)
+	var instructions, kind string
+	e := s.Store.DB.QueryRow(ctx, `SELECT delivery_instructions,delivery_kind FROM catalog_plans WHERE id=$1`, plan).Scan(&instructions, &kind)
 	if e == pgx.ErrNoRows {
 		return nil, fault.New(404, "未找到套餐。")
 	}
@@ -187,10 +187,12 @@ func (s Service) PreviewMembership(ctx context.Context, plan, key string) (map[s
 	value := "https://example.com/claim/gemini-preview"
 	if plan == "duolingo-12m" {
 		value = "https://www.duolingo.com/claim/super?code=PREVIEW-ONLY-NOT-A-REAL-CODE"
-	} else if plan == "elevenlabs-creator-3m" {
-		value = "preview@example.test:PREVIEW-ONLY-PASSWORD:DEMO2FAKEY:https://example.test/verify/preview"
+	} else if plan == "elevenlabs-creator-3m" || plan == "gemini-plus-6m" || plan == "muse-account" || plan == "notion-business-3m" {
+		value = "preview@example.test:PREVIEW-MAILBOX-PASSWORD:PREVIEW-ACCOUNT-PASSWORD:https://example.test/verify/preview"
+	} else if plan == "plus" {
+		value = "preview@example.test|PREVIEW-PASSWORD|PREVIEW-2FA"
 	}
-	m, e := Message(orders.EmailKind(plan), plan, "YMX-PREVIEW", value, instructions, s.Origin)
+	m, e := Message(kind, plan, "YMX-PREVIEW", value, instructions, s.Origin)
 	if e != nil {
 		return nil, e
 	}

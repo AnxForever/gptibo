@@ -3,13 +3,30 @@ import type { Env } from './platform.ts'
 import { membershipClaimUrl } from '../shared/membership-claim.ts'
 import { boundedResponseText } from './bounded-response.ts'
 
-export type VerificationKind = Exclude<keyof typeof emailTemplates, 'partner-welcome' | 'recharge-reminder' | 'delivery-link' | 'delivery-cdk' | 'delivery-duolingo-link' | 'delivery-gmail' | 'delivery-elevenlabs'>
+export type VerificationKind = Exclude<keyof typeof emailTemplates, 'partner-welcome' | 'recharge-reminder' | 'delivery-link' | 'delivery-cdk' | 'delivery-duolingo-link' | 'delivery-gmail' | 'delivery-elevenlabs' | 'delivery-gemini-plus' | 'delivery-account' | 'delivery-devin'>
+
+// Mirrors credentialPlans/linkPlans in internal/delivery/delivery.go: a plan
+// that ships account material must never fall back to the Duolingo CDK copy,
+// and a link plan must carry its own product wording.
+const deliveryTemplates: Readonly<Record<string, 'delivery-elevenlabs' | 'delivery-gemini-plus' | 'delivery-account' | 'delivery-devin' | 'delivery-gmail'>> = {
+  'elevenlabs-creator-3m': 'delivery-elevenlabs',
+  'gemini-plus-6m': 'delivery-gemini-plus',
+  'muse-account': 'delivery-account',
+  'notion-business-3m': 'delivery-account',
+  plus: 'delivery-account',
+  'gmail-account': 'delivery-gmail',
+  'devin-max-1m': 'delivery-devin',
+}
+
+export function deliveryTemplateFor(plan?: string) {
+  return plan === undefined ? undefined : deliveryTemplates[plan]
+}
 
 export function membershipDeliveryMessage(kind: 'link' | 'cdk', orderId: string, value: string, instructions: string, plan?: string) {
   const claimUrl = plan === 'gmail-account' ? null : membershipClaimUrl(value)
   if (plan !== 'gmail-account' && kind === 'link' && !claimUrl) throw new Error('Invalid membership claim link')
   const duo = plan === 'duolingo-12m' || kind === 'cdk'
-  const template = emailTemplates[plan === 'elevenlabs-creator-3m' ? 'delivery-elevenlabs' : plan === 'gmail-account' ? 'delivery-gmail' : claimUrl && duo ? 'delivery-duolingo-link' : kind === 'link' ? 'delivery-link' : 'delivery-cdk']
+  const template = emailTemplates[deliveryTemplateFor(plan) ?? (claimUrl && duo ? 'delivery-duolingo-link' : kind === 'link' ? 'delivery-link' : 'delivery-cdk')]
   const values: Record<string, string> = { __RECHARGE_DELIVERY_ORDER__: orderId, __RECHARGE_DELIVERY_VALUE__: value, __RECHARGE_DELIVERY_URL__: claimUrl ?? '', __RECHARGE_DELIVERY_INSTRUCTIONS__: instructions }
   const escape = (text: string) => text.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!)
   const pattern = /__RECHARGE_DELIVERY_(?:ORDER|VALUE|URL|INSTRUCTIONS)__/g

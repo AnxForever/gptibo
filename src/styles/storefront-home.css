@@ -15,6 +15,9 @@
 .store-content { min-width:0; }
 .store-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:20px; min-height:42px; }
 .store-toolbar h2 { font-size:21px; font-weight:600; letter-spacing:-.6px; }
+.store-toolbar-title { display:flex; align-items:baseline; gap:10px; min-width:0; }
+.store-count { flex-shrink:0; padding:3px 9px; border:1px solid var(--border); border-radius:999px; font-size:10px; color:var(--muted-foreground); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.store-category-count { margin-left:auto; font-size:10px; color:var(--muted-foreground); font-variant-numeric:tabular-nums; }
 .store-search { display:flex; align-items:center; position:relative; width:174px; }
 .store-search>svg { position:absolute; left:13px; z-index:1; color:var(--muted-foreground); pointer-events:none; }
 .store-search input { border-radius:22px; padding-left:36px; height:37px; font-size:12px; background:transparent; box-shadow:none; }
@@ -24,7 +27,8 @@
 .store-product-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .store-product-heading>span { font-size:11px; color:var(--muted-foreground); }
 .store-spec { margin-top:8px; color:var(--muted-foreground); font-size:11px; }
-.store-product-bottom { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:auto; padding-top:14px; min-height:48px; border-top:1px solid #f0f2f6; }
+.store-product-bottom { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-top:auto; padding-top:14px; min-height:48px; border-top:1px solid #f0f2f6; }
+.store-stock { flex-basis:100%; text-align:right; font-size:10px; color:var(--muted-foreground); font-variant-numeric:tabular-nums; }
 .store-starting-price { font-size:20px; font-weight:600; font-variant-numeric:tabular-nums; }
 .store-starting-price small { color:var(--muted-foreground); font-size:11px; font-weight:400; }
 .store-pending-price { font-size:12px; color:var(--muted-foreground); }
@@ -104,6 +108,8 @@ img.brand-art-logo { background:none; mask:none; object-fit:contain; }
   .store-product:hover .brand-art-glow { opacity:1; }
 }
 .store-compact-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:24px; }
+/* A lone card centres instead of hugging the left edge of a two-column grid. */
+.store-featured.is-single, .store-compact-grid.is-single { grid-template-columns:minmax(0,460px); justify-content:center; }
 .store-compact-grid.store-product-group { margin-top:0; }
 .store-product-group + .store-product-group { margin-top:24px; }
 .store-compact { display:flex; align-items:center; gap:12px; text-align:left; height:auto; min-height:74px; padding:16px 18px; border-radius:16px; background:var(--card); color:var(--foreground); font-size:13px; white-space:normal; }

@@ -123,12 +123,10 @@ type CanbosoSupplier struct {
 
 // NewCanbosoSupplier accepts only an https origin and a buyer key shaped like
 // the one the platform issues; the wallet is charged by the purchase call, so
-// there is no configurable gateway URL.
+// there is no configurable gateway URL. The origin is required: a deployment
+// must name it explicitly rather than inherit one from the source tree.
 func NewCanbosoSupplier(base, key string) (*CanbosoSupplier, error) {
 	base = strings.TrimSpace(base)
-	if base == "" {
-		base = "https://canboso.com"
-	}
 	u, e := url.Parse(base)
 	if e != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") || !canbosoKeyPattern.MatchString(key) {
 		return nil, errors.New("invalid Canboso configuration")

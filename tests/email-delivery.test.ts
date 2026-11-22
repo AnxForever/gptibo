@@ -33,7 +33,7 @@ test('legacy email orders retain exact prices, immutable purchase notes and manu
   assert.equal(s.db.prepare('SELECT COUNT(*) n FROM recharge_orders').get()!.n, 0)
   const catalog = await (await s.request('/api/catalog')).json()
   assert.equal(catalog.checkoutEnabled, true)
-  assert.deepEqual(catalog.plans.filter((p: { enabled: number }) => p.enabled).map((p: { id: string }) => p.id), ['gemini-pro-18m', 'duolingo-12m'])
+  assert.deepEqual(catalog.plans.filter((p: { enabled: number }) => p.enabled).map((p: { id: string }) => p.id), ['gemini-pro-18m', 'duolingo-12m', 'devin-max-1m'])
   const plan = s.db.prepare("SELECT * FROM catalog_plans WHERE id='gemini-pro-18m'").get()!
   const edited = await s.request('/api/admin/plans/gemini-pro-18m', { priceCents: 1990, enabled: true, version: plan.version, note: '更新领取要求', purchaseNote: '新增购买说明', deliveryInstructions: '新的默认步骤' }, s.admin)
   assert.equal(edited.status, 200)
@@ -193,6 +193,26 @@ test('claim actions reject unsafe or mixed content and preserve code and Gmail d
   assert.throws(() => membershipDeliveryMessage('link', 'YMX-EXAMPLE', 'javascript:alert(1)', '说明'))
   const gmail = membershipDeliveryMessage('cdk', 'YMX-EXAMPLE', 'https://example.test/claim', '账号使用说明', 'gmail-account')
   assert.match(gmail.subject, /Gmail/); assert.doesNotMatch(gmail.html, /立即领取/)
+})
+
+test('account and link plans carry their own template instead of the generic CDK copy', () => {
+  // Mirrors credentialPlans/linkPlans in internal/delivery/delivery.go, so the
+  // backup Worker never ships Duolingo or Gemini-18-month wording to these SKUs.
+  const credential = 'buyer@example.test:MAILBOX-PW:ACCOUNT-PW:https://mail.example.test/inbox'
+  const cases: { plan: string; kind: 'link' | 'cdk'; value: string; subject: RegExp; banned: RegExp }[] = [
+    { plan: 'gemini-plus-6m', kind: 'cdk', value: credential, subject: /Gemini Plus 6 个月/, banned: /18 个月|多邻国|兑换 CDK/ },
+    { plan: 'muse-account', kind: 'cdk', value: credential, subject: /账号资料已发货/, banned: /多邻国|兑换 CDK|Gemini Pro/ },
+    { plan: 'notion-business-3m', kind: 'cdk', value: credential, subject: /账号资料已发货/, banned: /多邻国|兑换 CDK|Gemini Pro/ },
+    { plan: 'devin-max-1m', kind: 'link', value: 'https://claim.example.test/devin/abc', subject: /Devin Max 1 个月/, banned: /Gemini|多邻国|兑换 CDK/ },
+  ]
+  for (const c of cases) {
+    const mail = membershipDeliveryMessage(c.kind, 'YMX-EXAMPLE', c.value, '领取说明', c.plan)
+    assert.match(mail.subject, c.subject, `${c.plan} subject`)
+    assert.doesNotMatch(mail.html + mail.text + mail.subject, c.banned, `${c.plan} leaked generic copy`)
+    assert.ok(mail.text.includes(c.value), `${c.plan} dropped the delivered value`)
+  }
+  // A staff-delivered link plan must still refuse a non-HTTPS value.
+  assert.throws(() => membershipDeliveryMessage('link', 'YMX-EXAMPLE', 'javascript:alert(1)', '说明', 'devin-max-1m'))
 })
 
 test('membership previews use the normal link template, fixed review mailbox and do not create or fulfill orders', async t => {

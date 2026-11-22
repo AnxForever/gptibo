@@ -39,6 +39,7 @@ type Plan struct {
 	Enabled              int    `json:"enabled"`
 	PartnerEnabled       int    `json:"partner_enabled"`
 	RenewalOnly          int    `json:"renewal_only"`
+	Stock                *int32 `json:"stock"`
 	PurchaseNote         string `json:"purchase_note"`
 	DeliveryInstructions string `json:"delivery_instructions"`
 	DeliveryKind         string `json:"delivery_kind"`
@@ -147,7 +148,7 @@ func (s Service) Read(ctx context.Context, slug string) (Response, error) {
 		out.Partner = p
 	}
 	sql := `SELECT c.id,c.product_id,c.name,c.price_cents,c.partner_enabled::int,c.renewal_only::int,
- c.purchase_note,c.delivery_instructions,c.version,(extract(epoch FROM c.updated_at)*1000)::bigint,c.enabled,NULL::bigint,c.supports_warranty,false,c.delivery_kind
+ c.purchase_note,c.delivery_instructions,c.version,(extract(epoch FROM c.updated_at)*1000)::bigint,c.enabled,NULL::bigint,c.supports_warranty,false,c.delivery_kind,c.stock
  FROM catalog_plans c ORDER BY c.sort_order,c.id`
 	var args []any
 	if out.Partner != nil {
@@ -158,7 +159,7 @@ func (s Service) Read(ctx context.Context, slug string) (Response, error) {
  AND coupon.active AND coupon.starts_at<=now() AND coupon.ends_at>now()
  AND COALESCE(sp.price_cents,p.price_cents)-coupon.discount_cents>=p.cost_cents
  AND COALESCE(sp.price_cents,p.price_cents)-coupon.discount_cents>0
- AND (SELECT count(*) FROM orders o WHERE o.coupon_id=coupon.id AND coupon_reserved(o))<coupon.max_uses),c.delivery_kind
+ AND (SELECT count(*) FROM orders o WHERE o.coupon_id=coupon.id AND coupon_reserved(o))<coupon.max_uses),c.delivery_kind,c.stock
  FROM catalog_plans c JOIN partner_prices p ON p.plan=c.id LEFT JOIN store_prices sp ON sp.store_id=$2 AND sp.plan=c.id WHERE p.partner_id=$1 ORDER BY c.sort_order,c.id`
 		args = []any{owner, shopID}
 	}
@@ -173,7 +174,7 @@ func (s Service) Read(ctx context.Context, slug string) (Response, error) {
 	for rows.Next() {
 		var p Plan
 		var enabled bool
-		if err = rows.Scan(&p.ID, &p.ProductID, &p.Name, &p.PriceCents, &p.PartnerEnabled, &p.RenewalOnly, &p.PurchaseNote, &p.DeliveryInstructions, &p.Version, &p.UpdatedAt, &enabled, &p.Cost, &p.SupportsWarranty, &p.HasCoupons, &p.DeliveryKind); err != nil {
+		if err = rows.Scan(&p.ID, &p.ProductID, &p.Name, &p.PriceCents, &p.PartnerEnabled, &p.RenewalOnly, &p.PurchaseNote, &p.DeliveryInstructions, &p.Version, &p.UpdatedAt, &enabled, &p.Cost, &p.SupportsWarranty, &p.HasCoupons, &p.DeliveryKind, &p.Stock); err != nil {
 			rows.Close()
 			return out, err
 		}

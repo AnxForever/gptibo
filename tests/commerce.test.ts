@@ -712,7 +712,7 @@ test('partner opening sends only a login link; the partner requests an OTP befor
   assert.equal(stored.slug, result.slug)
   assert.equal(stored.name, '代理商店')
   assert.equal(String(stored.name).includes('@'), false)
-  assert.equal(s.db.prepare('SELECT COUNT(*) n FROM partner_prices WHERE partner_id=?').get(result.id)!.n, 10)
+  assert.equal(s.db.prepare('SELECT COUNT(*) n FROM partner_prices WHERE partner_id=?').get(result.id)!.n, 11)
   assert.doesNotMatch(mail.mails[0].text, /\b\d{6}\b|10 分钟/)
   assert.equal(s.db.prepare('SELECT COUNT(*) n FROM partner_login_codes').get()!.n, 0)
   assert.equal((await s.request('/api/partner/auth/verify', { email: 'NEW@example.test', code: '001234' })).status, 401)
@@ -738,7 +738,7 @@ test('partner opening sends only a login link; the partner requests an OTP befor
 })
 
 const defaultPricesPath = '/api/admin/partners/default-prices'
-const defaultCosts = { 'x-premium-3m': 1700, 'x-premium-6m': 3400, plus: 11300, 'pro-5x': 65000, 'pro-20x': 105000, 'pro-25x': 330000, 'codex-sms-once': 400, 'gemini-pro-18m': 1990, 'duolingo-12m': 1990, 'gmail-account': 1000 }
+const defaultCosts = { 'x-premium-3m': 1700, 'x-premium-6m': 3400, plus: 11300, 'pro-5x': 65000, 'pro-20x': 105000, 'pro-25x': 330000, 'codex-sms-once': 400, 'gemini-pro-18m': 1990, 'duolingo-12m': 1990, 'gmail-account': 1000, 'devin-max-1m': 24000 }
 function defaultPricesPayload(settings: DefaultSupplySettings, costs: Record<string, number> = defaultCosts) {
   return { version: settings.version, prices: settings.plans.map(plan => ({ plan: plan.id, costCents: costs[plan.id] ?? plan.cost_cents, catalogVersion: plan.catalog_version })) }
 }
@@ -749,7 +749,7 @@ test('default supply prices require an administrator and same-origin writes, and
   assert.equal((await s.request(defaultPricesPath)).status, 401)
   assert.equal((await s.request(defaultPricesPath, undefined, partner)).status, 401)
   const settings: DefaultSupplySettings = await (await s.request(defaultPricesPath, undefined, admin)).json()
-  assert.equal(settings.version, 2); assert.equal(settings.plans.length, 10)
+  assert.equal(settings.version, 2); assert.equal(settings.plans.length, 11)
   for (const plan of settings.plans) assert.equal(plan.cost_cents, plan.id === 'pro-25x' ? 330000 : plan.id === 'gmail-account' ? 1000 : plan.price_cents)
   const payload = defaultPricesPayload(settings)
   assert.equal((await s.request(defaultPricesPath, payload, partner)).status, 401)

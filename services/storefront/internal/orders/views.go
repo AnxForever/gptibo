@@ -185,7 +185,7 @@ func EmailKind(plan string) string {
 	// plus is auto-delivered with account credentials, so it validates as cdk,
 	// but it stays out of EMAIL_PRODUCTS: the storefront still sells it as a
 	// subscription rather than as an email product.
-	case "duolingo-12m", "gmail-account", "plus", "elevenlabs-creator-3m":
+	case "duolingo-12m", "gmail-account", "plus", "elevenlabs-creator-3m", "gemini-plus-6m", "muse-account", "notion-business-3m":
 		return "cdk"
 	}
 	return ""

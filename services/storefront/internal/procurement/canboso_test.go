@@ -70,16 +70,17 @@ func TestCanbosoBalanceErrorIsRecognised(t *testing.T) {
 
 func TestCanbosoRejectsMalformedConfiguration(t *testing.T) {
 	for _, c := range [][2]string{
-		{"http://canboso.com", testCanbosoKey},
-		{"https://canboso.com/api", testCanbosoKey},
-		{"https://canboso.com", "abc"},
-		{"https://user:pw@canboso.com", testCanbosoKey},
+		{"", testCanbosoKey},
+		{"http://canboso.example.invalid", testCanbosoKey},
+		{"https://canboso.example.invalid/api", testCanbosoKey},
+		{"https://canboso.example.invalid", "abc"},
+		{"https://user:pw@canboso.example.invalid", testCanbosoKey},
 	} {
 		if _, e := NewCanbosoSupplier(c[0], c[1]); e == nil {
 			t.Fatal("accepted", c[0])
 		}
 	}
-	if _, e := NewCanbosoSupplier("https://canboso.com", testCanbosoKey); e != nil {
+	if _, e := NewCanbosoSupplier("https://canboso.example.invalid", testCanbosoKey); e != nil {
 		t.Fatal(e)
 	}
 }
@@ -135,6 +136,30 @@ func TestPickKind(t *testing.T) {
 	for _, c := range cases {
 		if got := pickKind(c.sp, c.legacy, c.canboso, c.delivery, c.account); got != c.want {
 			t.Fatalf("%s: pickKind=%q want %q", c.name, got, c.want)
+		}
+	}
+}
+
+func TestResolveKind(t *testing.T) {
+	cases := []struct {
+		name     string
+		sp       supply
+		legacy   string
+		canboso  bool
+		delivery bool
+		account  bool
+		want     string
+	}{
+		{"format without a supplier is staff-delivered", supply{DeliveryKind: "link"}, "", true, true, true, "manual"},
+		{"staff-delivered code plans work too", supply{DeliveryKind: "cdk"}, "", false, false, false, "manual"},
+		{"legacy mapping outranks manual", supply{DeliveryKind: "link"}, "delivery_supplier", false, false, false, "delivery_supplier"},
+		{"a named supplier never falls back to manual", supply{Supplier: "canboso", DeliveryKind: "cdk"}, "", false, true, true, ""},
+		{"no format and no supplier stays unsupported", supply{}, "", true, true, true, ""},
+		{"configured supplier still wins", supply{Supplier: "canboso", DeliveryKind: "cdk"}, "", true, true, true, "canboso"},
+	}
+	for _, c := range cases {
+		if got := resolveKind(c.sp, c.legacy, c.canboso, c.delivery, c.account); got != c.want {
+			t.Fatalf("%s: resolveKind=%q want %q", c.name, got, c.want)
 		}
 	}
 }

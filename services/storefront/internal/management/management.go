@@ -114,7 +114,7 @@ func rows(ctx context.Context, q queryable, sql string, args ...any) ([]map[stri
 	return out, r.Err()
 }
 
-const planColumns = `supports_warranty,id,product_id,name,price_cents,enabled::int,partner_enabled::int,renewal_only::int,purchase_note,delivery_instructions,version,default_cost_cents,sort_order,(extract(epoch FROM updated_at)*1000)::bigint AS updated_at`
+const planColumns = `supports_warranty,id,product_id,name,price_cents,enabled::int,partner_enabled::int,renewal_only::int,purchase_note,delivery_instructions,version,default_cost_cents,sort_order,stock,(extract(epoch FROM updated_at)*1000)::bigint AS updated_at`
 
 func (s Service) Plans(ctx context.Context) ([]map[string]any, error) {
 	return rows(ctx, s.Store.DB, "SELECT "+planColumns+" FROM catalog_plans ORDER BY sort_order,id")
@@ -133,7 +133,10 @@ type PlanInput struct {
 	Note                 string  `json:"note"`
 	PurchaseNote         *string `json:"purchaseNote"`
 	DeliveryInstructions *string `json:"deliveryInstructions"`
-	Version              *int64  `json:"version"`
+	// Stock is the sellable count shown on the shop card. Omit it to keep the
+	// current value, pass -1 to hide the count again.
+	Stock   *int32 `json:"stock"`
+	Version *int64 `json:"version"`
 }
 
 func (s Service) SavePlan(ctx context.Context, token, id string, in PlanInput, create bool) error {
@@ -142,6 +145,9 @@ func (s Service) SavePlan(ctx context.Context, token, id string, in PlanInput, c
 	}
 	if in.DefaultCostCents != nil && (!validMoney(*in.DefaultCostCents) || *in.DefaultCostCents > in.PriceCents) {
 		return fault.New(400, "默认供货价不能高于售价。")
+	}
+	if in.Stock != nil && (*in.Stock > 100000 || (*in.Stock < 0 && *in.Stock != -1)) {
+		return fault.New(400, "可售数量需在 0–100000 之间。")
 	}
 	for _, v := range []*string{in.PurchaseNote, in.DeliveryInstructions} {
 		if v != nil && !validText(*v, 2000) {
@@ -162,8 +168,8 @@ func (s Service) SavePlan(ctx context.Context, token, id string, in PlanInput, c
 			return e
 		}
 		if create {
-			_, e := tx.Exec(ctx, `INSERT INTO catalog_plans(id,product_id,name,price_cents,default_cost_cents,enabled,partner_enabled,renewal_only,purchase_note,delivery_instructions,supports_warranty)
- VALUES($1,$2,$3,$4,$5,$6,COALESCE($7,false),COALESCE($8,false),COALESCE($9,''),COALESCE($10,''),COALESCE($11,true))`, id, in.ProductID, strings.TrimSpace(in.Name), in.PriceCents, in.DefaultCostCents, in.Enabled, in.PartnerEnabled, in.RenewalOnly, in.PurchaseNote, in.DeliveryInstructions, in.SupportsWarranty)
+			_, e := tx.Exec(ctx, `INSERT INTO catalog_plans(id,product_id,name,price_cents,default_cost_cents,enabled,partner_enabled,renewal_only,purchase_note,delivery_instructions,supports_warranty,stock)
+ VALUES($1,$2,$3,$4,$5,$6,COALESCE($7,false),COALESCE($8,false),COALESCE($9,''),COALESCE($10,''),COALESCE($11,true),CASE WHEN $12::int < 0 THEN NULL ELSE $12::int END)`, id, in.ProductID, strings.TrimSpace(in.Name), in.PriceCents, in.DefaultCostCents, in.Enabled, in.PartnerEnabled, in.RenewalOnly, in.PurchaseNote, in.DeliveryInstructions, in.SupportsWarranty, in.Stock)
 			if e != nil {
 				return e
 			}
@@ -184,7 +190,9 @@ func (s Service) SavePlan(ctx context.Context, token, id string, in PlanInput, c
 			}
 			tag, e := tx.Exec(ctx, `UPDATE catalog_plans SET price_cents=$1,enabled=$2,default_cost_cents=COALESCE($3,default_cost_cents),
  partner_enabled=COALESCE($4,partner_enabled),renewal_only=COALESCE($5,renewal_only),purchase_note=COALESCE($6,purchase_note),
- supports_warranty=COALESCE($10,supports_warranty),delivery_instructions=COALESCE($7,delivery_instructions),version=version+1,updated_at=now() WHERE id=$8 AND version=$9`, in.PriceCents, in.Enabled, in.DefaultCostCents, in.PartnerEnabled, in.RenewalOnly, in.PurchaseNote, in.DeliveryInstructions, id, in.Version, in.SupportsWarranty)
+ supports_warranty=COALESCE($10,supports_warranty),delivery_instructions=COALESCE($7,delivery_instructions),
+ stock=CASE WHEN $11::int IS NOT NULL AND $11::int < 0 THEN NULL ELSE COALESCE($11::int,stock) END,
+ version=version+1,updated_at=now() WHERE id=$8 AND version=$9`, in.PriceCents, in.Enabled, in.DefaultCostCents, in.PartnerEnabled, in.RenewalOnly, in.PurchaseNote, in.DeliveryInstructions, id, in.Version, in.SupportsWarranty, in.Stock)
 			if e != nil {
 				return e
 			}

@@ -32,6 +32,26 @@ func claimURL(value string) string {
 	}
 	return value
 }
+
+// credentialPlans are the plans that ship account material rather than a claim
+// link or a redemption code. Each gets an account-shaped mail; the generic
+// template carries whatever the supplier hands back, so a new credential SKU
+// needs one line here and a catalogue row.
+var credentialPlans = map[string]string{
+	"elevenlabs-creator-3m": "delivery-elevenlabs",
+	"gemini-plus-6m":        "delivery-gemini-plus",
+	"muse-account":          "delivery-account",
+	"notion-business-3m":    "delivery-account",
+	// A ready-made Plus account arrives as pipe-joined credentials, not a code.
+	"plus": "delivery-account",
+}
+
+// linkPlans are claim-link SKUs whose mail carries their own product copy.
+// Any other link plan falls back to the generic delivery-link template.
+var linkPlans = map[string]string{
+	"devin-max-1m": "delivery-devin",
+}
+
 func Message(kind, plan, id, value, instructions, origin string, brands ...mailer.Brand) (mailer.Message, error) {
 	if kind == "" {
 		kind = orders.EmailKind(plan)
@@ -49,10 +69,10 @@ func Message(kind, plan, id, value, instructions, origin string, brands ...maile
 	template := "delivery-cdk"
 	if plan == "gmail-account" {
 		template = "delivery-gmail"
-	} else if plan == "elevenlabs-creator-3m" {
-		// A colon-joined credential: not a claim link, and nothing like a
-		// Duolingo redemption code, so it gets its own account-details mail.
-		template = "delivery-elevenlabs"
+	} else if account, ok := credentialPlans[plan]; ok {
+		template = account
+	} else if custom, ok := linkPlans[plan]; ok {
+		template = custom
 	} else if kind == "link" {
 		template = "delivery-link"
 	} else if link != "" {
